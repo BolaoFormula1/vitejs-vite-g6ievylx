@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Trophy, User, CheckCircle, Save, Calculator, Settings, AlertCircle, 
   Flag, Lock, LogIn, UserPlus, Trash2, Calendar, PlusCircle, XCircle, 
@@ -63,28 +63,28 @@ const INITIAL_DRIVERS = [
   "Sergio Pérez", "Valtteri Bottas"
 ];
 
-// CALENDÁRIO OFICIAL F1 2026 (Estimado)
+// CALENDÁRIO OFICIAL F1 2026 (Atualizado conforme FIA/Wikipedia)
 const INITIAL_RACES = [
-  { id: 1, name: "GP do Bahrein (Sakhir)", date: "2026-03-01", deadline: "2026-02-28T20:00", isBrazil: false, status: 'open', startingGrid: [] },
-  { id: 2, name: "GP da Arábia Saudita (Jeddah)", date: "2026-03-08", deadline: "2026-03-07T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 3, name: "GP da Austrália (Melbourne)", date: "2026-03-22", deadline: "2026-03-21T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 4, name: "GP do Japão (Suzuka)", date: "2026-04-05", deadline: "2026-04-04T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 5, name: "GP da China (Xangai)", date: "2026-04-19", deadline: "2026-04-18T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 1, name: "GP da Austrália (Melbourne)", date: "2026-03-08", deadline: "2026-03-07T20:00", isBrazil: false, status: 'open', startingGrid: [] },
+  { id: 2, name: "GP da China (Xangai)", date: "2026-03-15", deadline: "2026-03-14T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 3, name: "GP do Japão (Suzuka)", date: "2026-03-29", deadline: "2026-03-28T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 4, name: "GP do Bahrein (Sakhir)", date: "2026-04-12", deadline: "2026-04-11T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 5, name: "GP da Arábia Saudita (Jeddah)", date: "2026-04-19", deadline: "2026-04-18T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
   { id: 6, name: "GP de Miami (EUA)", date: "2026-05-03", deadline: "2026-05-02T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 7, name: "GP da Emília-Romanha (Imola)", date: "2026-05-17", deadline: "2026-05-16T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 8, name: "GP de Mônaco (Monte Carlo)", date: "2026-05-24", deadline: "2026-05-23T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 9, name: "GP do Canadá (Montreal)", date: "2026-06-07", deadline: "2026-06-06T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 10, name: "GP da Espanha (Madrid)", date: "2026-06-21", deadline: "2026-06-20T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 11, name: "GP da Áustria (Spielberg)", date: "2026-06-28", deadline: "2026-06-27T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 12, name: "GP da Grã-Bretanha (Silverstone)", date: "2026-07-05", deadline: "2026-07-04T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 13, name: "GP da Hungria (Hungaroring)", date: "2026-07-19", deadline: "2026-07-18T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 14, name: "GP da Bélgica (Spa-Francorchamps)", date: "2026-07-26", deadline: "2026-07-25T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 15, name: "GP da Holanda (Zandvoort)", date: "2026-08-23", deadline: "2026-08-22T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 16, name: "GP da Itália (Monza)", date: "2026-08-30", deadline: "2026-08-29T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 17, name: "GP do Azerbaijão (Baku)", date: "2026-09-13", deadline: "2026-09-12T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 18, name: "GP de Singapura (Marina Bay)", date: "2026-09-20", deadline: "2026-09-19T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 19, name: "GP dos EUA (Austin)", date: "2026-10-18", deadline: "2026-10-17T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
-  { id: 20, name: "GP do México (Cidade do México)", date: "2026-10-25", deadline: "2026-10-24T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 7, name: "GP do Canadá (Montreal)", date: "2026-05-24", deadline: "2026-05-23T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 8, name: "GP de Mônaco (Monte Carlo)", date: "2026-06-07", deadline: "2026-06-06T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 9, name: "GP de Barcelona-Catalunha", date: "2026-06-14", deadline: "2026-06-13T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 10, name: "GP da Áustria (Spielberg)", date: "2026-06-28", deadline: "2026-06-27T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 11, name: "GP da Grã-Bretanha (Silverstone)", date: "2026-07-05", deadline: "2026-07-04T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 12, name: "GP da Bélgica (Spa-Francorchamps)", date: "2026-07-19", deadline: "2026-07-18T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 13, name: "GP da Hungria (Hungaroring)", date: "2026-07-26", deadline: "2026-07-25T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 14, name: "GP da Holanda (Zandvoort)", date: "2026-08-23", deadline: "2026-08-22T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 15, name: "GP da Itália (Monza)", date: "2026-09-06", deadline: "2026-09-05T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 16, name: "GP da Espanha (Madrid)", date: "2026-09-13", deadline: "2026-09-12T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 17, name: "GP do Azerbaijão (Baku)", date: "2026-09-27", deadline: "2026-09-26T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 18, name: "GP de Singapura (Marina Bay)", date: "2026-10-11", deadline: "2026-10-10T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 19, name: "GP dos EUA (Austin)", date: "2026-10-25", deadline: "2026-10-24T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
+  { id: 20, name: "GP do México (Cidade do México)", date: "2026-11-01", deadline: "2026-10-31T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
   { id: 21, name: "GP de São Paulo (Brasil)", date: "2026-11-08", deadline: "2026-11-07T20:00", isBrazil: true, status: 'pending', startingGrid: [] },
   { id: 22, name: "GP de Las Vegas (EUA)", date: "2026-11-21", deadline: "2026-11-20T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
   { id: 23, name: "GP do Catar (Lusail)", date: "2026-11-29", deadline: "2026-11-28T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
