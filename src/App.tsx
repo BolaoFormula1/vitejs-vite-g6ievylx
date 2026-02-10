@@ -642,9 +642,9 @@ export default function App() {
 
             {adminTab === 'audit' && (
               <div className="bg-white p-6 rounded-xl shadow-md printable-area">
-                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print">
                       <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência de Palpites</h2>
-                      <div className="flex gap-2 items-center no-print">
+                      <div className="flex gap-2 items-center">
                           <select 
                             className="p-2 border rounded font-bold text-xs bg-gray-50" 
                             value={adminRaceId} 
