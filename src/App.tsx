@@ -1,8 +1,11 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { 
-  Trophy, Flag, Lock, Clock, UserCog, Printer, Shield, Calculator, 
-  CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, Save, X, RefreshCw
+  Trophy, User, CheckCircle, Save, Calculator, Settings, AlertCircle, 
+  Flag, Lock, LogIn, UserPlus, Trash2, Calendar, PlusCircle, XCircle, 
+  Clock, Mail, Key, UserCog, Send, Printer, Award, Shield, DollarSign,
+  Link as LinkIcon, Copy, Banknote, UserCheck, UserX, ChevronRight, History,
+  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, RefreshCw
 } from 'lucide-react';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -36,12 +39,33 @@ const manualKeys = {
   appId: "1:784210783074:web:4f00531d543daa733f1a3b"
 };
 
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualKeys;
+// Tratamento de erro na leitura da env var
+let firebaseConfig;
+try {
+  firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualKeys;
+} catch (e) {
+  firebaseConfig = manualKeys;
+}
 
-// --- INICIALIZAÇÃO SEGURA ---
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// --- INICIALIZAÇÃO BLINDADA DO FIREBASE ---
+let app;
+let auth;
+let db;
+let initError = null;
+
+try {
+  // Tenta obter a instância existente ou cria uma nova com tratamento de erro robusto
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
+  auth = getAuth(app);
+  db = getFirestore(app);
+} catch (e) {
+  console.error("Erro fatal Firebase Init:", e);
+  initError = e.message;
+}
 
 // --- DADOS ESTÁTICOS ---
 const INITIAL_DRIVERS = [
@@ -134,6 +158,10 @@ const RegisterScreen = ({ onRegister, onBack }) => {
 
 // --- APP PRINCIPAL ---
 export default function App() {
+  if (initError) {
+    return <div className="min-h-screen flex items-center justify-center bg-red-50 text-red-900 p-4 font-bold text-center">Erro crítico no Firebase: {initError}</div>;
+  }
+
   const [userAuth, setUserAuth] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
@@ -273,14 +301,38 @@ export default function App() {
 
   const register = async (data) => {
     const id = data.email.replace(/\./g, '_');
+    
     const userDocRef = doc(db, 'users', id);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) return alert("Já existe uma conta com este e-mail.");
+
     const usersCollection = collection(db, 'users');
     const usersSnapshot = await getDocs(query(usersCollection, limit(1)));
     const isFirstUser = usersSnapshot.empty;
-    const newUser = { ...data, id, isAdmin: isFirstUser, points: 0, championGuess: "", paymentConfirmed: isFirstUser };
-    try { await setDoc(doc(db, 'users', id), newUser); if (isFirstUser) { alert("Conta criada! Você é o ADMINISTRADOR."); localStorage.setItem('bolao_f1_user_id', id); setCurrentUser(newUser); setActiveTab('admin'); } else { alert("Conta criada! Aguarde aprovação do Admin."); setActiveTab('login'); } } catch (e) { alert("Erro ao criar conta: " + e.message); }
+    
+    const newUser = { 
+      ...data, 
+      id, 
+      isAdmin: isFirstUser, 
+      points: 0, 
+      championGuess: "", 
+      paymentConfirmed: isFirstUser 
+    };
+
+    try { 
+      await setDoc(doc(db, 'users', id), newUser); 
+      if (isFirstUser) {
+        alert("Conta criada! Você é o ADMINISTRADOR.");
+        localStorage.setItem('bolao_f1_user_id', id);
+        setCurrentUser(newUser);
+        setActiveTab('admin');
+      } else {
+        alert("Conta criada! Aguarde aprovação do Admin.");
+        setActiveTab('login');
+      }
+    } catch (e) { 
+      alert("Erro ao criar conta: " + e.message + "\n\nVerifique se alterou as Regras no Firebase Console!"); 
+    }
   };
 
   // FUNÇÃO DE SALVAMENTO AUTOMÁTICO (SILENCIOSO)
