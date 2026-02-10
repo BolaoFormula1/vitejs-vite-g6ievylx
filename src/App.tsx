@@ -137,10 +137,7 @@ const RegisterScreen = ({ onRegister, onBack }) => {
 
 // --- APP PRINCIPAL ---
 export default function App() {
-  if (initError) {
-    return <div className="min-h-screen flex items-center justify-center bg-red-50 text-red-900 p-4 font-bold text-center">Erro crítico no Firebase: {initError}</div>;
-  }
-
+  
   const [userAuth, setUserAuth] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
