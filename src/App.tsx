@@ -1,11 +1,11 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Trophy, User, CheckCircle, Save, Calculator, Settings, AlertCircle, 
   Flag, Lock, LogIn, UserPlus, Trash2, Calendar, PlusCircle, XCircle, 
   Clock, Mail, Key, UserCog, Send, Printer, Award, Shield, DollarSign,
   Link as LinkIcon, Copy, Banknote, UserCheck, UserX, ChevronRight, History,
-  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, RefreshCw
+  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, RefreshCw, FileText
 } from 'lucide-react';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -137,7 +137,6 @@ const RegisterScreen = ({ onRegister, onBack }) => {
 
 // --- APP PRINCIPAL ---
 export default function App() {
-  
   const [userAuth, setUserAuth] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
@@ -277,7 +276,6 @@ export default function App() {
 
   const register = async (data) => {
     const id = data.email.replace(/\./g, '_');
-    
     const userDocRef = doc(db, 'users', id);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) return alert("Já existe uma conta com este e-mail.");
@@ -286,14 +284,7 @@ export default function App() {
     const usersSnapshot = await getDocs(query(usersCollection, limit(1)));
     const isFirstUser = usersSnapshot.empty;
     
-    const newUser = { 
-      ...data, 
-      id, 
-      isAdmin: isFirstUser, 
-      points: 0, 
-      championGuess: "", 
-      paymentConfirmed: isFirstUser 
-    };
+    const newUser = { ...data, id, isAdmin: isFirstUser, points: 0, championGuess: "", paymentConfirmed: isFirstUser };
 
     try { 
       await setDoc(doc(db, 'users', id), newUser); 
@@ -335,21 +326,14 @@ export default function App() {
     }
   };
 
-  // --- FUNÇÃO DE APROVAÇÃO (CORRIGIDA) ---
   const togglePayment = async (id, currentStatus) => {
-    try {
-      // Passamos o valor exato a ser gravado (inverso do atual)
-      await updateDoc(doc(db, 'users', id), { paymentConfirmed: !currentStatus });
-    } catch (e) {
-      alert("Erro ao atualizar pagamento: " + e.message);
-    }
+    try { await updateDoc(doc(db, 'users', id), { paymentConfirmed: !currentStatus }); } 
+    catch (e) { alert("Erro ao atualizar pagamento: " + e.message); }
   };
 
   const deleteUserDoc = async (id) => {
     if (window.confirm("Remover este membro permanentemente?")) {
-        try {
-            await deleteDoc(doc(db, 'users', id));
-        } catch (e) { alert("Erro ao deletar: " + e.message); }
+        try { await deleteDoc(doc(db, 'users', id)); } catch (e) { alert("Erro ao deletar: " + e.message); }
     }
   };
 
@@ -464,11 +448,70 @@ export default function App() {
               </div>
 
               {results[race.id] ? (
-                <div className="bg-gray-50 p-8 rounded-lg text-center border-2 border-dashed">
-                  <Shield size={48} className="mx-auto text-gray-300 mb-4"/>
-                  <p className="font-black text-gray-400 uppercase mb-2">Etapa Finalizada</p>
-                  <p className="text-xs text-gray-500">Vencedor: {results[race.id].top10[0]}</p>
-                </div>
+                  <div className="space-y-6">
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center mb-6">
+                          <h3 className="font-bold text-green-800 uppercase">Etapa Finalizada e Conferida</h3>
+                          <p className="text-xs text-green-600">Confira abaixo a pontuação dos seus palpites</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-3">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10 (Pontuação)</h3>
+                            {Array(10).fill(0).map((_, i) => {
+                                const driver = currentBet.top10[i];
+                                const officialResult = results[race.id];
+                                let points = 0;
+                                let style = "bg-gray-100 text-gray-400"; // default/miss
+                                
+                                if (driver) {
+                                    const officialPos = officialResult.top10.indexOf(driver);
+                                    const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
+                                    const consolation = race.isBrazil ? 2 : 1;
+
+                                    if (officialPos === i) {
+                                        points = table[i];
+                                        style = "bg-green-100 text-green-700 border-green-300 font-bold";
+                                    } else if (officialPos !== -1) {
+                                        points = consolation;
+                                        style = "bg-yellow-50 text-yellow-700 border-yellow-200";
+                                    }
+                                }
+
+                                return (
+                                    <div key={i} className="flex items-center gap-3">
+                                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
+                                        <div className="flex-1 flex items-center gap-2">
+                                             <div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>
+                                                {driver || "-"}
+                                             </div>
+                                             <div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>
+                                                +{points}
+                                             </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="bg-gray-50 p-5 rounded-xl border">
+                                <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia (Pontuação)</h3>
+                                <div className="flex items-center gap-2">
+                                    <div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>
+                                        {currentBet.driverOfDay || "-"}
+                                    </div>
+                                    <div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${
+                                        currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay
+                                        ? "bg-green-100 text-green-700 border-green-300"
+                                        : "bg-gray-100 text-gray-400"
+                                    }`}>
+                                        +{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                      </div>
+                  </div>
               ) : (
                 <div className={`grid grid-cols-1 md:grid-cols-2 gap-10 ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
                   <div className="space-y-3">
@@ -525,9 +568,9 @@ export default function App() {
         {activeTab === 'admin' && (
           <div className="space-y-6 no-print">
             <div className="flex bg-white rounded-lg shadow-sm p-1 gap-1">
-              {['results', 'members', 'settings'].map(t => (
+              {['results', 'members', 'settings', 'audit'].map(t => (
                 <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-2 text-xs font-black uppercase rounded ${adminTab === t ? 'bg-red-600 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>
-                  {t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : 'Configurações'}
+                  {t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : t === 'audit' ? 'Conferência' : 'Configurações'}
                 </button>
               ))}
             </div>
@@ -597,10 +640,68 @@ export default function App() {
               </div>
             )}
 
+            {adminTab === 'audit' && (
+              <div className="bg-white p-6 rounded-xl shadow-md printable-area">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print">
+                      <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência de Palpites</h2>
+                      <div className="flex gap-2 items-center">
+                          <select 
+                            className="p-2 border rounded font-bold text-xs bg-gray-50" 
+                            value={adminRaceId} 
+                            onChange={e => setAdminRaceId(Number(e.target.value))}
+                          >
+                            {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                          </select>
+                          <button onClick={() => window.print()} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2">
+                             <Printer size={16}/> Imprimir / PDF
+                          </button>
+                      </div>
+                  </div>
+
+                  <div className="hidden print:block text-center mb-6">
+                      <h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Relatório de Palpites</h1>
+                      <p className="text-gray-600">{config.races.find(r => r.id === adminRaceId)?.name}</p>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse">
+                          <thead>
+                              <tr className="bg-gray-100 border-b-2 border-gray-300">
+                                  <th className="p-2 border">Participante</th>
+                                  {Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}
+                                  <th className="p-2 border text-center bg-yellow-50">Piloto Dia</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {users.filter(u => !u.isAdmin).map(u => {
+                                  const bet = bets[`${adminRaceId}_${u.id}`];
+                                  return (
+                                      <tr key={u.id} className="border-b hover:bg-gray-50">
+                                          <td className="p-2 border font-bold">{u.name}</td>
+                                          {Array(10).fill(0).map((_, i) => (
+                                              <td key={i} className="p-2 border text-center truncate max-w-[80px]">
+                                                  {bet?.top10[i] ? 
+                                                      config.drivers.find(d => d === bet.top10[i])?.split(' ').pop() 
+                                                      : <span className="text-gray-300">-</span>
+                                                  }
+                                              </td>
+                                          ))}
+                                          <td className="p-2 border text-center bg-yellow-50 font-bold">
+                                              {bet?.driverOfDay ? bet.driverOfDay.split(' ').pop() : "-"}
+                                          </td>
+                                      </tr>
+                                  )
+                              })}
+                          </tbody>
+                      </table>
+                      <p className="text-[10px] text-gray-400 mt-4 text-center hidden print:block">Relatório gerado em {new Date().toLocaleString()}</p>
+                  </div>
+              </div>
+            )}
+
             {adminTab === 'settings' && (
               <div className="space-y-6">
                 
-                {/* NOVA SEÇÃO: ATUALIZAR CALENDÁRIO (FIX) */}
                 <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-red-500">
                   <h2 className="text-lg font-black uppercase text-red-700 mb-4 flex items-center gap-2"><RefreshCw size={18}/> Reset de Emergência</h2>
                   <p className="text-xs text-gray-500 mb-4">
@@ -615,7 +716,6 @@ export default function App() {
                   </button>
                 </div>
                 
-                {/* SEÇÃO DEFINIR CAMPEÃO */}
                 <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500">
                   <h2 className="text-lg font-black uppercase text-yellow-700 mb-4 flex items-center gap-2"><Trophy size={18}/> Finalizar Temporada</h2>
                   <p className="text-xs text-gray-500 mb-4">Selecione o campeão apenas ao final do campeonato.</p>
@@ -714,7 +814,7 @@ export default function App() {
 
       <nav className="fixed bottom-0 left-0 w-full bg-white border-t p-3 flex justify-around shadow-inner z-50 no-print">
         <button onClick={() => setActiveTab(currentUser?.isAdmin ? 'admin' : 'dashboard')} className={`flex flex-col items-center ${activeTab === 'dashboard' || activeTab === 'admin' ? 'text-red-600' : 'text-gray-400'}`}>
-          <CheckCircle size={24}/> <span className="text-[9px] font-black uppercase">Apostar</span>
+          <CheckCircle size={24}/> <span className="text-[9px] font-black uppercase">Tela de Apostas</span>
         </button>
         <button onClick={() => setActiveTab('ranking')} className={`flex flex-col items-center ${activeTab === 'ranking' ? 'text-red-600' : 'text-gray-400'}`}>
           <Trophy size={24}/> <span className="text-[9px] font-black uppercase">Ranking</span>
