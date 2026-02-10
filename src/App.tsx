@@ -1,11 +1,8 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { 
-  Trophy, User, CheckCircle, Save, Calculator, Settings, AlertCircle, 
-  Flag, Lock, LogIn, UserPlus, Trash2, Calendar, PlusCircle, XCircle, 
-  Clock, Mail, Key, UserCog, Send, Printer, Award, Shield, DollarSign,
-  Link as LinkIcon, Copy, Banknote, UserCheck, UserX, ChevronRight, History,
-  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, RefreshCw
+  Trophy, Flag, Lock, Clock, UserCog, Printer, Shield, Calculator, 
+  CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, Save, X, RefreshCw
 } from 'lucide-react';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -56,7 +53,7 @@ const INITIAL_DRIVERS = [
   "Sergio Pérez", "Valtteri Bottas"
 ];
 
-// CALENDÁRIO OFICIAL 2026 (Austrália Abre, Madrid Incluído)
+// CALENDÁRIO OFICIAL 2026
 const INITIAL_RACES = [
   { id: 1, name: "GP da Austrália (Melbourne)", date: "2026-03-08", deadline: "2026-03-07T20:00", isBrazil: false, status: 'open', startingGrid: [] },
   { id: 2, name: "GP da China (Xangai)", date: "2026-03-15", deadline: "2026-03-14T20:00", isBrazil: false, status: 'pending', startingGrid: [] },
@@ -87,7 +84,7 @@ const INITIAL_RACES = [
 const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 const POINTS_SYSTEM_BRAZIL = [50, 36, 30, 24, 20, 16, 12, 8, 4, 2];
 
-// Componentes
+// Componentes UI
 const PrintStyles = () => (
   <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; color: black !important; background: white !important; } .no-print { display: none !important; } }`}</style>
 );
@@ -153,6 +150,7 @@ export default function App() {
   const [newDriverName, setNewDriverName] = useState("");
   const [editingRace, setEditingRace] = useState(null);
   const [authError, setAuthError] = useState("");
+  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'success' | 'error'
 
   useEffect(() => {
     const initAuth = async () => { 
@@ -275,45 +273,40 @@ export default function App() {
 
   const register = async (data) => {
     const id = data.email.replace(/\./g, '_');
-    
     const userDocRef = doc(db, 'users', id);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) return alert("Já existe uma conta com este e-mail.");
-
     const usersCollection = collection(db, 'users');
     const usersSnapshot = await getDocs(query(usersCollection, limit(1)));
     const isFirstUser = usersSnapshot.empty;
-    
-    const newUser = { 
-      ...data, 
-      id, 
-      isAdmin: isFirstUser, 
-      points: 0, 
-      championGuess: "", 
-      paymentConfirmed: isFirstUser 
-    };
-
-    try { 
-      await setDoc(doc(db, 'users', id), newUser); 
-      if (isFirstUser) {
-        alert("Conta criada! Você é o ADMINISTRADOR.");
-        localStorage.setItem('bolao_f1_user_id', id);
-        setCurrentUser(newUser);
-        setActiveTab('admin');
-      } else {
-        alert("Conta criada! Aguarde aprovação do Admin.");
-        setActiveTab('login');
-      }
-    } catch (e) { 
-      alert("Erro ao criar conta: " + e.message + "\n\nVerifique se alterou as Regras no Firebase Console!"); 
-    }
+    const newUser = { ...data, id, isAdmin: isFirstUser, points: 0, championGuess: "", paymentConfirmed: isFirstUser };
+    try { await setDoc(doc(db, 'users', id), newUser); if (isFirstUser) { alert("Conta criada! Você é o ADMINISTRADOR."); localStorage.setItem('bolao_f1_user_id', id); setCurrentUser(newUser); setActiveTab('admin'); } else { alert("Conta criada! Aguarde aprovação do Admin."); setActiveTab('login'); } } catch (e) { alert("Erro ao criar conta: " + e.message); }
   };
 
-  const saveBet = async (top10, driverOfDay) => {
+  // FUNÇÃO DE SALVAMENTO AUTOMÁTICO (SILENCIOSO)
+  const autoSaveBet = async (top10, driverOfDay) => {
     if (!currentUser) return;
     const race = config.races.find(r => r.id === selectedRaceId);
-    if (new Date() > new Date(race.deadline)) return alert(`Apostas encerradas!`);
-    try { await setDoc(doc(db, 'bets', `${selectedRaceId}_${currentUser.id}`), { top10, driverOfDay, timestamp: new Date().toISOString() }); alert("Salvo!"); } catch (e) { alert("Erro: " + e.message); }
+    
+    // Verificação de prazo
+    if (new Date() > new Date(race.deadline)) {
+      setSaveStatus('error');
+      return; 
+    }
+
+    setSaveStatus('saving');
+    try { 
+        await setDoc(doc(db, 'bets', `${selectedRaceId}_${currentUser.id}`), { 
+            top10, 
+            driverOfDay, 
+            timestamp: new Date().toISOString() 
+        }); 
+        setSaveStatus('success');
+        setTimeout(() => setSaveStatus('idle'), 2000); // Limpa status após 2s
+    } catch (e) { 
+        console.error("Erro autosave:", e);
+        setSaveStatus('error');
+    }
   };
 
   const saveRaceResult = async () => {
@@ -333,16 +326,13 @@ export default function App() {
     setEditingRace(null);
   };
 
-  // --- FUNÇÃO PARA FORÇAR ATUALIZAÇÃO DO CALENDÁRIO ---
   const resetCalendar = async () => {
     if (window.confirm("Isso vai substituir todas as corridas no banco de dados pelo calendário oficial de 2026. Deseja continuar?")) {
         try {
             await updateDoc(doc(db, 'config', 'main'), { races: INITIAL_RACES });
             alert("Calendário atualizado com sucesso!");
             window.location.reload();
-        } catch (e) {
-            alert("Erro ao atualizar: " + e.message);
-        }
+        } catch (e) { alert("Erro ao atualizar: " + e.message); }
     }
   };
 
@@ -410,8 +400,19 @@ export default function App() {
                 <div>
                   <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2 uppercase italic leading-none text-gray-900"><Flag className="text-red-600" size={24}/> {race?.name}</h2>
                   <p className="text-xs text-gray-400 mt-1 font-bold">{new Date(race?.date).toLocaleDateString()} {race?.isBrazil && '🇧🇷 DOBRADO'}</p>
-                  {isLocked && <p className="text-xs font-bold text-red-600 flex items-center gap-1 mt-1"><Lock size={12}/> Apostas Encerradas</p>}
-                  {!isLocked && <p className="text-xs font-bold text-green-600 flex items-center gap-1 mt-1"><Clock size={12}/> Aberto até {new Date(race.deadline).toLocaleString()}</p>}
+                  
+                  {/* INDICADOR DE STATUS */}
+                  {isLocked ? (
+                    <p className="text-xs font-bold text-red-600 flex items-center gap-1 mt-1"><Lock size={12}/> Apostas Encerradas</p>
+                  ) : (
+                    <div className="flex items-center gap-3 mt-1">
+                        <p className="text-xs font-bold text-green-600 flex items-center gap-1"><Clock size={12}/> Aberto até {new Date(race.deadline).toLocaleString()}</p>
+                        
+                        {saveStatus === 'saving' && <span className="text-xs font-bold text-blue-500 animate-pulse flex items-center gap-1"><Save size={12}/> Salvando...</span>}
+                        {saveStatus === 'success' && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle2 size={12}/> Salvo</span>}
+                        {saveStatus === 'error' && <span className="text-xs font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={12}/> Erro ao salvar</span>}
+                    </div>
+                  )}
                 </div>
                 <select className="p-2 border rounded font-bold text-sm bg-gray-50 text-gray-900" value={selectedRaceId} onChange={e => setSelectedRaceId(Number(e.target.value))}>
                   {config.races.map(r => <option key={r.id} value={r.id}>{r.name} {results[r.id] ? '🏁' : ''}</option>)}
@@ -432,7 +433,7 @@ export default function App() {
                       <div key={i} className="flex items-center gap-3">
                         <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
                         <select className="flex-1 p-2 border rounded-lg bg-white text-gray-900 text-sm font-medium" value={currentBet.top10[i]} onChange={(e) => {
-                          const nt = [...currentBet.top10]; nt[i] = e.target.value; saveBet(nt, currentBet.driverOfDay);
+                          const nt = [...currentBet.top10]; nt[i] = e.target.value; autoSaveBet(nt, currentBet.driverOfDay);
                         }}>
                           <option value="">Piloto...</option>
                           {config.drivers.filter(d => !currentBet.top10.includes(d) || currentBet.top10[i] === d).map(d => <option key={d} value={d}>{d}</option>)}
@@ -443,7 +444,7 @@ export default function App() {
                   <div className="space-y-6">
                     <div className="bg-gray-50 p-5 rounded-xl border">
                       <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3>
-                      <select className="w-full p-3 border rounded-lg font-bold text-red-600 bg-white" value={currentBet.driverOfDay} onChange={(e) => saveBet(currentBet.top10, e.target.value)}>
+                      <select className="w-full p-3 border rounded-lg font-bold text-red-600 bg-white" value={currentBet.driverOfDay} onChange={(e) => autoSaveBet(currentBet.top10, e.target.value)}>
                         <option value="">Selecione...</option>
                         {config.drivers.map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
