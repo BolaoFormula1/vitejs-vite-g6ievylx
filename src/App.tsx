@@ -39,33 +39,12 @@ const manualKeys = {
   appId: "1:784210783074:web:4f00531d543daa733f1a3b"
 };
 
-// Tratamento de erro na leitura da env var
-let firebaseConfig;
-try {
-  firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualKeys;
-} catch (e) {
-  firebaseConfig = manualKeys;
-}
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualKeys;
 
-// --- INICIALIZAÇÃO BLINDADA DO FIREBASE ---
-let app;
-let auth;
-let db;
-let initError = null;
-
-try {
-  // Tenta obter a instância existente ou cria uma nova com tratamento de erro robusto
-  if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-  } else {
-    app = getApp();
-  }
-  auth = getAuth(app);
-  db = getFirestore(app);
-} catch (e) {
-  console.error("Erro fatal Firebase Init:", e);
-  initError = e.message;
-}
+// --- INICIALIZAÇÃO SEGURA ---
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 // --- DADOS ESTÁTICOS ---
 const INITIAL_DRIVERS = [
@@ -335,12 +314,10 @@ export default function App() {
     }
   };
 
-  // FUNÇÃO DE SALVAMENTO AUTOMÁTICO (SILENCIOSO)
   const autoSaveBet = async (top10, driverOfDay) => {
     if (!currentUser) return;
     const race = config.races.find(r => r.id === selectedRaceId);
     
-    // Verificação de prazo
     if (new Date() > new Date(race.deadline)) {
       setSaveStatus('error');
       return; 
@@ -354,10 +331,28 @@ export default function App() {
             timestamp: new Date().toISOString() 
         }); 
         setSaveStatus('success');
-        setTimeout(() => setSaveStatus('idle'), 2000); // Limpa status após 2s
+        setTimeout(() => setSaveStatus('idle'), 2000); 
     } catch (e) { 
         console.error("Erro autosave:", e);
         setSaveStatus('error');
+    }
+  };
+
+  // --- FUNÇÃO DE APROVAÇÃO (CORRIGIDA) ---
+  const togglePayment = async (id, currentStatus) => {
+    try {
+      // Passamos o valor exato a ser gravado (inverso do atual)
+      await updateDoc(doc(db, 'users', id), { paymentConfirmed: !currentStatus });
+    } catch (e) {
+      alert("Erro ao atualizar pagamento: " + e.message);
+    }
+  };
+
+  const deleteUserDoc = async (id) => {
+    if (window.confirm("Remover este membro permanentemente?")) {
+        try {
+            await deleteDoc(doc(db, 'users', id));
+        } catch (e) { alert("Erro ao deletar: " + e.message); }
     }
   };
 
@@ -591,8 +586,13 @@ export default function App() {
                     <div key={u.id} className="flex justify-between items-center p-4 border rounded-xl">
                       <span className="font-black text-gray-800 uppercase italic text-sm">{u.name}</span>
                       <div className="flex gap-2">
-                        <button onClick={() => togglePayment(u.id)} className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase ${u.paymentConfirmed ? 'bg-green-100 text-green-700' : 'bg-red-500 text-white'}`}>{u.paymentConfirmed ? 'Pago' : 'Pendente'}</button>
-                        <button onClick={() => deleteDoc(doc(db, 'users', u.id))} className="text-gray-300 hover:text-red-600"><Trash2 size={20}/></button>
+                        <button 
+                          onClick={() => togglePayment(u.id, u.paymentConfirmed)} 
+                          className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all ${u.paymentConfirmed ? 'bg-green-100 text-green-700' : 'bg-red-500 text-white'}`}
+                        >
+                          {u.paymentConfirmed ? 'Pago' : 'Pendente'}
+                        </button>
+                        <button onClick={() => deleteUserDoc(u.id)} className="text-gray-300 hover:text-red-600"><Trash2 size={20}/></button>
                       </div>
                     </div>
                   ))}
