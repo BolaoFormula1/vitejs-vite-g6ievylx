@@ -87,6 +87,11 @@ const INITIAL_RACES = [
 const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 const POINTS_SYSTEM_BRAZIL = [50, 36, 30, 24, 20, 16, 12, 8, 4, 2];
 
+// Componentes UI
+const PrintStyles = () => (
+  <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; color: black !important; background: white !important; } .no-print { display: none !important; } }`}</style>
+);
+
 const ChampionModal = ({ drivers, onSubmit, onClose, currentGuess }) => {
   const [selected, setSelected] = useState(currentGuess || "");
   return (
@@ -370,15 +375,12 @@ export default function App() {
       
       let tds = `<td style="padding:4px; border:1px solid #ccc; font-weight:bold">${u.name}</td>`;
       
-      // Top 10
       for(let i=0; i<10; i++) {
         const driverFull = bet?.top10[i];
-        // Pega só o sobrenome ou mostra traço
         const driverName = driverFull ? config.drivers.find(d => d === driverFull)?.split(' ').pop() : "-";
         tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center">${driverName || "-"}</td>`;
       }
       
-      // Driver Day
       const dodFull = bet?.driverOfDay;
       const dodName = dodFull ? dodFull.split(' ').pop() : "-";
       tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center; background:#ffecb3">${dodName}</td>`;
@@ -417,15 +419,19 @@ export default function App() {
           </table>
           <div style="margin-top:20px; text-align:center; color:#999">Gerado em ${new Date().toLocaleString()}</div>
         </body>
-        <script>
-          window.onload = function() { window.print(); }
-        </script>
       </html>
     `;
 
     const win = window.open('', '', 'width=900,height=600');
     win.document.write(printContent);
     win.document.close();
+    
+    // Adicionando delay para garantir que o conteúdo renderize antes de imprimir
+    setTimeout(() => {
+        win.print();
+        // Opcional: fechar a janela automaticamente após a impressão
+        // win.close();
+    }, 500);
   };
 
   if (authError) {
