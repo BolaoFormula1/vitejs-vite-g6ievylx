@@ -403,13 +403,13 @@ export default function App() {
       {showChampionModal && <ChampionModal drivers={config.drivers} currentGuess={currentUser.championGuess} onClose={() => setShowChampionModal(false)} onSubmit={async (d) => { try { await updateDoc(doc(db, 'users', currentUser.id), { championGuess: d }); setCurrentUser({...currentUser, championGuess: d}); setShowChampionModal(false); } catch(e) { alert("Erro: " + e.message); }}} />}
 
       <header className="bg-red-600 text-white p-4 sticky top-0 z-50 shadow-lg">
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
+        <div className={`mx-auto flex justify-between items-center ${activeTab === 'admin' && adminTab === 'audit' ? 'max-w-[98%]' : 'max-w-4xl'}`}>
           <h1 className="font-black italic text-xl tracking-tighter uppercase">F1 BOLÃO '26</h1>
           <button onClick={logout} className="bg-red-800 text-xs px-3 py-1 rounded font-bold uppercase hover:bg-red-900 transition flex items-center gap-2"><LogOut size={16}/> Sair</button>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-4 space-y-6">
+      <main className={`mx-auto p-4 space-y-6 ${activeTab === 'admin' && adminTab === 'audit' ? 'max-w-[98%]' : 'max-w-4xl'}`}>
         {activeTab === 'dashboard' && (
           <>
             <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500 flex flex-col sm:flex-row justify-between items-center gap-4">
