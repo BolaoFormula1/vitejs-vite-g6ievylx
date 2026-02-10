@@ -5,7 +5,7 @@ import {
   Flag, Lock, LogIn, UserPlus, Trash2, Calendar, PlusCircle, XCircle, 
   Clock, Mail, Key, UserCog, Send, Printer, Award, Shield, DollarSign,
   Link as LinkIcon, Copy, Banknote, UserCheck, UserX, ChevronRight, History,
-  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, RefreshCw
+  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, RefreshCw, FileText
 } from 'lucide-react';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -569,9 +569,9 @@ export default function App() {
         {activeTab === 'admin' && (
           <div className="space-y-6 no-print">
             <div className="flex bg-white rounded-lg shadow-sm p-1 gap-1">
-              {['results', 'members', 'settings'].map(t => (
+              {['results', 'members', 'settings', 'audit'].map(t => (
                 <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-2 text-xs font-black uppercase rounded ${adminTab === t ? 'bg-red-600 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>
-                  {t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : 'Configurações'}
+                  {t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : t === 'audit' ? 'Conferência' : 'Configurações'}
                 </button>
               ))}
             </div>
@@ -641,10 +641,66 @@ export default function App() {
               </div>
             )}
 
+            {adminTab === 'audit' && (
+              <div className="bg-white p-6 rounded-xl shadow-md printable-area">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print">
+                      <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência de Palpites</h2>
+                      <div className="flex gap-2 items-center">
+                          <select 
+                            className="p-2 border rounded font-bold text-xs bg-gray-50" 
+                            value={adminRaceId} 
+                            onChange={e => setAdminRaceId(Number(e.target.value))}
+                          >
+                            {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                          </select>
+                          <button onClick={() => window.print()} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700">Gerar PDF</button>
+                      </div>
+                  </div>
+
+                  <div className="hidden print:block text-center mb-6">
+                      <h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Relatório de Palpites</h1>
+                      <p className="text-gray-600">{config.races.find(r => r.id === adminRaceId)?.name}</p>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse">
+                          <thead>
+                              <tr className="bg-gray-100 border-b-2 border-gray-300">
+                                  <th className="p-2 border">Participante</th>
+                                  {Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}
+                                  <th className="p-2 border text-center bg-yellow-50">Piloto Dia</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {users.filter(u => !u.isAdmin).map(u => {
+                                  const bet = bets[`${adminRaceId}_${u.id}`];
+                                  return (
+                                      <tr key={u.id} className="border-b hover:bg-gray-50">
+                                          <td className="p-2 border font-bold">{u.name}</td>
+                                          {Array(10).fill(0).map((_, i) => (
+                                              <td key={i} className="p-2 border text-center truncate max-w-[80px]">
+                                                  {bet?.top10[i] ? 
+                                                      config.drivers.find(d => d === bet.top10[i])?.split(' ').pop() 
+                                                      : <span className="text-gray-300">-</span>
+                                                  }
+                                              </td>
+                                          ))}
+                                          <td className="p-2 border text-center bg-yellow-50 font-bold">
+                                              {bet?.driverOfDay ? bet.driverOfDay.split(' ').pop() : "-"}
+                                          </td>
+                                      </tr>
+                                  )
+                              })}
+                          </tbody>
+                      </table>
+                      <p className="text-[10px] text-gray-400 mt-4 text-center hidden print:block">Relatório gerado em {new Date().toLocaleString()}</p>
+                  </div>
+              </div>
+            )}
+
             {adminTab === 'settings' && (
               <div className="space-y-6">
                 
-                {/* NOVA SEÇÃO: ATUALIZAR CALENDÁRIO (FIX) */}
                 <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-red-500">
                   <h2 className="text-lg font-black uppercase text-red-700 mb-4 flex items-center gap-2"><RefreshCw size={18}/> Reset de Emergência</h2>
                   <p className="text-xs text-gray-500 mb-4">
@@ -659,7 +715,6 @@ export default function App() {
                   </button>
                 </div>
                 
-                {/* SEÇÃO DEFINIR CAMPEÃO */}
                 <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500">
                   <h2 className="text-lg font-black uppercase text-yellow-700 mb-4 flex items-center gap-2"><Trophy size={18}/> Finalizar Temporada</h2>
                   <p className="text-xs text-gray-500 mb-4">Selecione o campeão apenas ao final do campeonato.</p>
