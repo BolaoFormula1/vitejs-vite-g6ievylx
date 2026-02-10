@@ -758,7 +758,7 @@ export default function App() {
 
       <nav className="fixed bottom-0 left-0 w-full bg-white border-t p-3 flex justify-around shadow-inner z-50 no-print">
         <button onClick={() => setActiveTab(currentUser?.isAdmin ? 'admin' : 'dashboard')} className={`flex flex-col items-center ${activeTab === 'dashboard' || activeTab === 'admin' ? 'text-red-600' : 'text-gray-400'}`}>
-          <CheckCircle size={24}/> <span className="text-[9px] font-black uppercase">Apostar</span>
+          <CheckCircle size={24}/> <span className="text-[9px] font-black uppercase">Tela de Apostas</span>
         </button>
         <button onClick={() => setActiveTab('ranking')} className={`flex flex-col items-center ${activeTab === 'ranking' ? 'text-red-600' : 'text-gray-400'}`}>
           <Trophy size={24}/> <span className="text-[9px] font-black uppercase">Ranking</span>
