@@ -364,6 +364,72 @@ export default function App() {
     }
   };
 
+  const handlePrintAudit = () => {
+    const raceName = config.races.find(r => r.id === adminRaceId)?.name || "Corrida";
+    const auditUsers = users.filter(u => !u.isAdmin).sort((a, b) => a.name.localeCompare(b.name));
+    
+    let tableHtml = "";
+    
+    auditUsers.forEach(u => {
+      const bet = bets[`${adminRaceId}_${u.id}`];
+      
+      let tds = `<td style="padding:4px; border:1px solid #ccc; font-weight:bold">${u.name}</td>`;
+      
+      for(let i=0; i<10; i++) {
+        const driverFull = bet?.top10[i];
+        const driverName = driverFull ? config.drivers.find(d => d === driverFull)?.split(' ').pop() : "-";
+        tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center">${driverName || "-"}</td>`;
+      }
+      
+      const dodFull = bet?.driverOfDay;
+      const dodName = dodFull ? dodFull.split(' ').pop() : "-";
+      tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center; background:#ffecb3">${dodName}</td>`;
+      
+      tableHtml += `<tr>${tds}</tr>`;
+    });
+
+    const printContent = `
+      <html>
+        <head>
+          <title>Relatório - ${raceName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 10px; -webkit-print-color-adjust: exact; }
+            h1 { text-align: center; margin-bottom: 5px; }
+            h2 { text-align: center; margin-top: 0; color: #555; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #eee; border: 1px solid #999; padding: 5px; font-size: 9px; }
+            tr:nth-child(even) { background: #f9f9f9; }
+          </style>
+        </head>
+        <body>
+          <h1>F1 BOLÃO '26 - CONFERÊNCIA</h1>
+          <h2>${raceName}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>PARTICIPANTE</th>
+                <th>1º</th><th>2º</th><th>3º</th><th>4º</th><th>5º</th>
+                <th>6º</th><th>7º</th><th>8º</th><th>9º</th><th>10º</th>
+                <th style="background:#ffd54f">PILOTO DIA</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableHtml}
+            </tbody>
+          </table>
+          <div style="margin-top:20px; text-align:center; color:#999">Gerado em ${new Date().toLocaleString()}</div>
+        </body>
+        <script>
+          window.onload = function() { setTimeout(() => window.print(), 500); }
+        </script>
+      </html>
+    `;
+
+    const win = window.open('', '', 'width=900,height=600');
+    win.document.write(printContent);
+    win.document.close();
+  };
+
   if (authError) {
     return (
       <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6">
@@ -396,6 +462,25 @@ export default function App() {
   const race = config.races.find(r => r.id === selectedRaceId);
   const isLocked = new Date() > new Date(race.deadline);
   const currentBet = bets[`${selectedRaceId}_${currentUser?.id}`] || { top10: Array(10).fill(""), driverOfDay: "" };
+
+  // CALCULO DO TOTAL DE PONTOS DA ETAPA (NOVO)
+  let totalRacePoints = 0;
+  if(results[race.id]) {
+      const officialResult = results[race.id];
+      const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
+      const consolation = race.isBrazil ? 2 : 1;
+
+      currentBet.top10.forEach((d, i) => {
+          if(d) {
+              const pos = officialResult.top10.indexOf(d);
+              if(pos === i) totalRacePoints += table[i];
+              else if(pos !== -1) totalRacePoints += consolation;
+          }
+      });
+      if(currentBet.driverOfDay && currentBet.driverOfDay === officialResult.driverOfDay) {
+          totalRacePoints += 5;
+      }
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 pb-20 font-sans">
@@ -431,7 +516,9 @@ export default function App() {
                   
                   {/* INDICADOR DE STATUS */}
                   {isLocked ? (
-                    <p className="text-xs font-bold text-red-600 flex items-center gap-1 mt-1"><Lock size={12}/> Apostas Encerradas</p>
+                    <div className="mt-2">
+                        <p className="text-xs font-bold text-red-600 flex items-center gap-1"><Lock size={12}/> Apostas Encerradas</p>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-3 mt-1">
                         <p className="text-xs font-bold text-green-600 flex items-center gap-1"><Clock size={12}/> Aberto até {new Date(race.deadline).toLocaleString()}</p>
@@ -452,6 +539,7 @@ export default function App() {
                       <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center mb-6">
                           <h3 className="font-bold text-green-800 uppercase">Etapa Finalizada e Conferida</h3>
                           <p className="text-xs text-green-600">Confira abaixo a pontuação dos seus palpites</p>
+                          <p className="text-lg font-black text-green-900 mt-2">Sua Pontuação Total: {totalRacePoints}</p>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -513,7 +601,7 @@ export default function App() {
                       </div>
                   </div>
               ) : (
-                <div className={`grid grid-cols-1 md:grid-cols-2 gap-10 ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-10 ${isLocked ? 'opacity-75 pointer-events-none' : ''}`}>
                   <div className="space-y-3">
                     <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10</h3>
                     {Array(10).fill(0).map((_, i) => (
