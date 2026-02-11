@@ -471,12 +471,15 @@ export default function App() {
   const race = config.races.find(r => r.id === selectedRaceId);
   const isLocked = new Date() > new Date(race.deadline);
   
+  // LÓGICA DE EXIBIÇÃO DE APOSTA (MANUAL OU AUTOMÁTICA)
   const getDisplayBet = () => {
     const realBet = bets[`${selectedRaceId}_${currentUser?.id}`];
     if (realBet) return { bet: realBet, isAuto: false, reason: null };
+
     if (isLocked) {
       const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
       const currentIndex = sortedRaces.findIndex(r => r.id === selectedRaceId);
+
       if (currentIndex > 0) {
         const prevRace = sortedRaces[currentIndex - 1];
         const prevBet = bets[`${prevRace.id}_${currentUser?.id}`];
@@ -500,6 +503,9 @@ export default function App() {
       currentBet.top10.forEach((d, i) => { if(d) { const pos = officialResult.top10.indexOf(d); if(pos === i) totalRacePoints += table[i]; else if(pos !== -1) totalRacePoints += consolation; } });
       if(currentBet.driverOfDay && currentBet.driverOfDay === officialResult.driverOfDay) totalRacePoints += 5;
   }
+  
+  // VERIFICAÇÃO SE É O VENCEDOR DA ETAPA
+  const isStageWinner = results[race.id]?.financialWinners?.includes(currentUser.id);
 
   return (
     <div className="min-h-screen bg-gray-100 pb-20 font-sans">
@@ -519,7 +525,10 @@ export default function App() {
             <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-3">
                 <div className="bg-yellow-100 p-3 rounded-full"><Trophy className="text-yellow-600" size={24} /></div>
-                <div><h3 className="font-bold text-gray-800 uppercase italic text-sm">Palpite do Campeão</h3><p className="text-xs text-gray-500">{currentUser.championGuess ? <span className="font-black text-gray-900">{currentUser.championGuess}</span> : "Quem vence a temporada?"}</p></div>
+                <div>
+                  <h3 className="font-bold text-gray-800 uppercase italic text-sm">Palpite do Campeão</h3>
+                  <p className="text-xs text-gray-500">{currentUser.championGuess ? <span className="font-black text-gray-900">{currentUser.championGuess}</span> : "Quem vence a temporada?"}</p>
+                </div>
               </div>
               <button onClick={() => setShowChampionModal(true)} className="text-xs font-bold uppercase py-2 px-4 rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 shadow-lg">{currentUser.championGuess ? "Alterar" : "Definir"}</button>
             </div>
@@ -529,28 +538,108 @@ export default function App() {
                 <div>
                   <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2 uppercase italic leading-none text-gray-900"><Flag className="text-red-600" size={24}/> {race?.name}</h2>
                   <p className="text-xs text-gray-400 mt-1 font-bold">{new Date(race?.date).toLocaleDateString()} {race?.isBrazil && '🇧🇷 DOBRADO'}</p>
+                  
+                  {/* INDICADOR DE STATUS */}
                   {isLocked ? (
-                    <div className="mt-2"><p className="text-xs font-bold text-red-600 flex items-center gap-1"><Lock size={12}/> Apostas Encerradas</p>{isAutoBet && (<div className="mt-1 bg-yellow-50 text-yellow-800 text-[10px] p-2 rounded border border-yellow-200 flex items-center gap-2"><RefreshCw size={12} /><strong>Atenção:</strong> {autoReason}</div>)}</div>
+                    <div className="mt-2">
+                        <p className="text-xs font-bold text-red-600 flex items-center gap-1"><Lock size={12}/> Apostas Encerradas</p>
+                        {isAutoBet && (
+                            <div className="mt-2 bg-yellow-100 text-yellow-800 p-3 rounded-lg border-l-4 border-yellow-500 flex items-center gap-2 shadow-sm">
+                                <RefreshCw size={20} className="shrink-0" />
+                                <div>
+                                  <p className="font-bold text-sm uppercase">Preenchimento Automático</p>
+                                  <p className="text-xs">{autoReason}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                   ) : (
-                    <div className="flex items-center gap-3 mt-1"><p className="text-xs font-bold text-green-600 flex items-center gap-1"><Clock size={12}/> Aberto até {new Date(race.deadline).toLocaleString()}</p>{saveStatus === 'saving' && <span className="text-xs font-bold text-blue-500 animate-pulse flex items-center gap-1"><Save size={12}/> Salvando...</span>}{saveStatus === 'success' && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle2 size={12}/> Salvo</span>}{saveStatus === 'error' && <span className="text-xs font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={12}/> Erro ao salvar</span>}</div>
+                    <div className="flex items-center gap-3 mt-1">
+                        <p className="text-xs font-bold text-green-600 flex items-center gap-1"><Clock size={12}/> Aberto até {new Date(race.deadline).toLocaleString()}</p>
+                        
+                        {saveStatus === 'saving' && <span className="text-xs font-bold text-blue-500 animate-pulse flex items-center gap-1"><Save size={12}/> Salvando...</span>}
+                        {saveStatus === 'success' && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle2 size={12}/> Salvo</span>}
+                        {saveStatus === 'error' && <span className="text-xs font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={12}/> Erro ao salvar</span>}
+                    </div>
                   )}
                 </div>
-                <select className="p-2 border rounded font-bold text-sm bg-gray-50 text-gray-900" value={selectedRaceId} onChange={e => setSelectedRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name} {results[r.id] ? '🏁' : ''}</option>)}</select>
+                <select className="p-2 border rounded font-bold text-sm bg-gray-50 text-gray-900" value={selectedRaceId} onChange={e => setSelectedRaceId(Number(e.target.value))}>
+                  {config.races.map(r => <option key={r.id} value={r.id}>{r.name} {results[r.id] ? '🏁' : ''}</option>)}
+                </select>
               </div>
 
               {results[race.id] ? (
                   <div className="space-y-6">
-                      <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center mb-6"><h3 className="font-bold text-green-800 uppercase">Etapa Finalizada</h3><p className="text-xs text-green-600">Confira sua pontuação abaixo</p><p className="text-lg font-black text-green-900 mt-2">Total: {totalRacePoints}</p></div>
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center mb-6">
+                          <h3 className="font-bold text-green-800 uppercase">Etapa Finalizada e Conferida</h3>
+                          <p className="text-xs text-green-600">Confira abaixo a pontuação dos seus palpites</p>
+                          <p className="text-2xl font-black text-green-900 mt-2">{totalRacePoints} Pontos</p>
+                          
+                          {/* FEEDBACK DE VENCEDOR DA ETAPA */}
+                          {isStageWinner && (
+                             <div className="mt-4 bg-yellow-100 text-yellow-900 p-3 rounded-lg border border-yellow-300 font-bold flex flex-col items-center animate-bounce shadow-lg">
+                                <span className="flex items-center gap-2 uppercase text-sm"><Trophy size={18}/> Vencedor da Etapa!</span>
+                                <span className="text-lg">Prêmio: {formatCurrency(financialData.prizePerStage)}</span>
+                             </div>
+                          )}
+                      </div>
+                      
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div className="space-y-3"><h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10</h3>
+                        <div className="space-y-3">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10 (Pontuação)</h3>
                             {Array(10).fill(0).map((_, i) => {
-                                const driver = currentBet.top10[i]; const officialResult = results[race.id]; let points = 0; let style = "bg-gray-100 text-gray-400";
-                                if (driver) { const officialPos = officialResult.top10.indexOf(driver); const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM; const consolation = race.isBrazil ? 2 : 1;
-                                    if (officialPos === i) { points = table[i]; style = "bg-green-100 text-green-700 border-green-300 font-bold"; } else if (officialPos !== -1) { points = consolation; style = "bg-yellow-50 text-yellow-700 border-yellow-200"; } }
-                                return (<div key={i} className="flex items-center gap-3"><span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span><div className="flex-1 flex items-center gap-2"><div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>{driver || "-"}</div><div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>+{points}</div></div></div>);
+                                const driver = currentBet.top10[i];
+                                const officialResult = results[race.id];
+                                let points = 0;
+                                let style = "bg-gray-100 text-gray-400"; // default/miss
+                                
+                                if (driver) {
+                                    const officialPos = officialResult.top10.indexOf(driver);
+                                    const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
+                                    const consolation = race.isBrazil ? 2 : 1;
+
+                                    if (officialPos === i) {
+                                        points = table[i];
+                                        style = "bg-green-100 text-green-700 border-green-300 font-bold";
+                                    } else if (officialPos !== -1) {
+                                        points = consolation;
+                                        style = "bg-yellow-50 text-yellow-700 border-yellow-200";
+                                    }
+                                }
+
+                                return (
+                                    <div key={i} className="flex items-center gap-3">
+                                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
+                                        <div className="flex-1 flex items-center gap-2">
+                                             <div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>
+                                                {driver || "-"}
+                                             </div>
+                                             <div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>
+                                                +{points}
+                                             </div>
+                                        </div>
+                                    </div>
+                                );
                             })}
                         </div>
-                        <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><div className="flex items-center gap-2"><div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div><div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-400"}`}>+{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}</div></div></div></div>
+
+                        <div className="space-y-6">
+                            <div className="bg-gray-50 p-5 rounded-xl border">
+                                <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia (Pontuação)</h3>
+                                <div className="flex items-center gap-2">
+                                    <div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>
+                                        {currentBet.driverOfDay || "-"}
+                                    </div>
+                                    <div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${
+                                        currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay
+                                        ? "bg-green-100 text-green-700 border-green-300"
+                                        : "bg-gray-100 text-gray-400"
+                                    }`}>
+                                        +{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                       </div>
                   </div>
               ) : (
@@ -558,10 +647,26 @@ export default function App() {
                   <div className="space-y-3">
                     <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10 {isAutoBet && <span className="ml-2 text-yellow-600 font-normal normal-case">(Auto)</span>}</h3>
                     {Array(10).fill(0).map((_, i) => (
-                      <div key={i} className="flex items-center gap-3"><span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span><select className="flex-1 p-2 border rounded-lg bg-white text-gray-900 text-sm font-medium" value={currentBet.top10[i]} onChange={(e) => { const nt = [...currentBet.top10]; nt[i] = e.target.value; autoSaveBet(nt, currentBet.driverOfDay); }}><option value="">Piloto...</option>{config.drivers.filter(d => !currentBet.top10.includes(d) || currentBet.top10[i] === d).map(d => <option key={d} value={d}>{d}</option>)}</select></div>
+                      <div key={i} className="flex items-center gap-3">
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
+                        <select className="flex-1 p-2 border rounded-lg bg-white text-gray-900 text-sm font-medium" value={currentBet.top10[i]} onChange={(e) => {
+                          const nt = [...currentBet.top10]; nt[i] = e.target.value; autoSaveBet(nt, currentBet.driverOfDay);
+                        }}>
+                          <option value="">Piloto...</option>
+                          {config.drivers.filter(d => !currentBet.top10.includes(d) || currentBet.top10[i] === d).map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </div>
                     ))}
                   </div>
-                  <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><select className="w-full p-3 border rounded-lg font-bold text-red-600 bg-white" value={currentBet.driverOfDay} onChange={(e) => autoSaveBet(currentBet.top10, e.target.value)}><option value="">Selecione...</option>{config.drivers.map(d => <option key={d} value={d}>{d}</option>)}</select></div></div>
+                  <div className="space-y-6">
+                    <div className="bg-gray-50 p-5 rounded-xl border">
+                      <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3>
+                      <select className="w-full p-3 border rounded-lg font-bold text-red-600 bg-white" value={currentBet.driverOfDay} onChange={(e) => autoSaveBet(currentBet.top10, e.target.value)}>
+                        <option value="">Selecione...</option>
+                        {config.drivers.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -569,33 +674,24 @@ export default function App() {
         )}
 
         {activeTab === 'ranking' && (
-          <div className="space-y-6 printable-area"> {/* Mover printable-area para cá */}
-            {/* CARD DE PREMIAÇÃO GERAL */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-700 text-white p-6 rounded-xl shadow-lg border border-gray-200">
-                <h2 className="text-lg font-black uppercase mb-4 flex items-center gap-2 border-b border-green-500 pb-2"><Banknote/> Premiação Total (Estimada)</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                    <div><p className="text-xs opacity-75 uppercase">1º Lugar (50%)</p><p className="font-black text-xl">{formatCurrency(financialData.finalPrizePool * 0.50)}</p></div>
-                    <div><p className="text-xs opacity-75 uppercase">2º Lugar (30%)</p><p className="font-black text-xl">{formatCurrency(financialData.finalPrizePool * 0.30)}</p></div>
-                    <div><p className="text-xs opacity-75 uppercase">3º Lugar (15%)</p><p className="font-black text-xl">{formatCurrency(financialData.finalPrizePool * 0.15)}</p></div>
-                    <div><p className="text-xs opacity-75 uppercase">4º Lugar (5%)</p><p className="font-black text-xl">{formatCurrency(financialData.finalPrizePool * 0.05)}</p></div>
-                </div>
-                <div className="mt-4 pt-4 border-t border-green-500 flex justify-between text-xs font-bold">
-                    <span>Prêmio por Etapa: {formatCurrency(financialData.prizePerStage)}</span>
-                    <span>Última Etapa (Vencedor): {formatCurrency(financialData.lastRaceReserve)}</span>
-                </div>
+          <div className="bg-white rounded-xl shadow-md overflow-hidden printable-area">
+            <div className="bg-red-600 p-5 text-white flex justify-between items-center">
+              <h2 className="text-xl font-black italic flex items-center gap-2 uppercase tracking-tighter"><Trophy size={20}/> Classificação</h2>
+              <button onClick={() => window.print()} className="p-2 hover:bg-red-700 rounded transition no-print"><Printer size={20}/></button>
             </div>
-
-            <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                <div className="bg-red-600 p-5 text-white flex justify-between items-center"><h2 className="text-xl font-black italic flex items-center gap-2 uppercase tracking-tighter"><Trophy size={20}/> Classificação</h2><button onClick={() => window.print()} className="p-2 hover:bg-red-700 rounded transition no-print"><Printer size={20}/></button></div>
-                <table className="w-full text-left">
-                <thead><tr className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 border-b"><th className="p-4">Pos</th><th className="p-4">Nome</th><th className="p-4 text-right pr-6">Pts</th></tr></thead>
-                <tbody className="divide-y">
-                    {[...users].filter(u => !u.isAdmin).sort((a,b) => (Number(b.points) || 0) - (Number(a.points) || 0)).map((u, i) => (
-                    <tr key={u.id} className={u.id === currentUser?.id ? 'bg-yellow-50' : ''}><td className="p-4 text-center font-black text-gray-400">{i+1}º</td><td className="p-4 font-black text-gray-800 uppercase italic text-sm">{u.name}</td><td className="p-4 text-right font-black text-2xl pr-6 text-red-600">{(u.points || 0).toString()}</td></tr>
-                    ))}
-                </tbody>
-                </table>
-            </div>
+            <table className="w-full text-left">
+              <thead><tr className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 border-b"><th className="p-4">Pos</th><th className="p-4">Nome</th><th className="p-4 text-right pr-6">Pts</th></tr></thead>
+              <tbody className="divide-y">
+                {/* Filtrando administradores para que não apareçam no ranking */}
+                {[...users].filter(u => !u.isAdmin).sort((a,b) => (Number(b.points) || 0) - (Number(a.points) || 0)).map((u, i) => (
+                  <tr key={u.id} className={u.id === currentUser?.id ? 'bg-yellow-50' : ''}>
+                    <td className="p-4 text-center font-black text-gray-400">{i+1}º</td>
+                    <td className="p-4 font-black text-gray-800 uppercase italic text-sm">{u.name}</td>
+                    <td className="p-4 text-right font-black text-2xl pr-6 text-red-600">{(u.points || 0).toString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
