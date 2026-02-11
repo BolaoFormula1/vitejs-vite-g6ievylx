@@ -184,6 +184,7 @@ export default function App() {
   const [adminTab, setAdminTab] = useState('results');
   const [selectedRaceId, setSelectedRaceId] = useState(1);
   const [adminRaceId, setAdminRaceId] = useState(1);
+  const [conferenceRaceId, setConferenceRaceId] = useState(1); // Novo estado para aba de conferência
   const [showChampionModal, setShowChampionModal] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [config, setConfig] = useState({ drivers: INITIAL_DRIVERS, races: INITIAL_RACES, officialChampion: null, financial: { entryFee: 300, mainPrizeDeduction: 240, perUserPoints: 10 } });
@@ -191,7 +192,7 @@ export default function App() {
   const [newDriverName, setNewDriverName] = useState("");
   const [editingRace, setEditingRace] = useState(null);
   const [authError, setAuthError] = useState("");
-  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'success' | 'error'
+  const [saveStatus, setSaveStatus] = useState('idle');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   useEffect(() => {
@@ -401,72 +402,6 @@ export default function App() {
             window.location.reload();
         } catch (e) { alert("Erro ao atualizar: " + e.message); }
     }
-  };
-
-  const handlePrintAudit = () => {
-    const raceName = config.races.find(r => r.id === adminRaceId)?.name || "Corrida";
-    const auditUsers = users.filter(u => !u.isAdmin).sort((a, b) => a.name.localeCompare(b.name));
-    
-    let tableHtml = "";
-    
-    auditUsers.forEach(u => {
-      const bet = bets[`${adminRaceId}_${u.id}`];
-      
-      let tds = `<td style="padding:4px; border:1px solid #ccc; font-weight:bold">${u.name}</td>`;
-      
-      for(let i=0; i<10; i++) {
-        const driverFull = bet?.top10[i];
-        const driverName = driverFull ? config.drivers.find(d => d === driverFull)?.split(' ').pop() : "-";
-        tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center">${driverName || "-"}</td>`;
-      }
-      
-      const dodFull = bet?.driverOfDay;
-      const dodName = dodFull ? dodFull.split(' ').pop() : "-";
-      tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center; background:#ffecb3">${dodName}</td>`;
-      
-      tableHtml += `<tr>${tds}</tr>`;
-    });
-
-    const printContent = `
-      <html>
-        <head>
-          <title>Relatório - ${raceName}</title>
-          <style>
-            body { font-family: Arial, sans-serif; font-size: 10px; -webkit-print-color-adjust: exact; }
-            h1 { text-align: center; margin-bottom: 5px; }
-            h2 { text-align: center; margin-top: 0; color: #555; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th { background: #eee; border: 1px solid #999; padding: 5px; font-size: 9px; }
-            tr:nth-child(even) { background: #f9f9f9; }
-          </style>
-        </head>
-        <body>
-          <h1>F1 BOLÃO '26 - CONFERÊNCIA</h1>
-          <h2>${raceName}</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>PARTICIPANTE</th>
-                <th>1º</th><th>2º</th><th>3º</th><th>4º</th><th>5º</th>
-                <th>6º</th><th>7º</th><th>8º</th><th>9º</th><th>10º</th>
-                <th style="background:#ffd54f">PILOTO DIA</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tableHtml}
-            </tbody>
-          </table>
-          <div style="margin-top:20px; text-align:center; color:#999">Gerado em ${new Date().toLocaleString()}</div>
-        </body>
-        <script>
-          window.onload = function() { setTimeout(() => window.print(), 500); }
-        </script>
-      </html>
-    `;
-
-    const win = window.open('', '', 'width=900,height=600');
-    win.document.write(printContent);
-    win.document.close();
   };
 
   if (authError) {
