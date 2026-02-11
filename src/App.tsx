@@ -123,7 +123,11 @@ const RegisterScreen = ({ onRegister, onBack }) => {
   };
   
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1544781440-62283a00e572?q=80&w=2574&auto=format&fit=crop')"}}>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1595781572972-e0750436d936?q=80&w=2670&auto=format&fit=crop')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+    }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
         <div className="flex flex-col items-center mb-6">
@@ -512,7 +516,11 @@ export default function App() {
   if (authError) return <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6"><div className="bg-white text-red-900 p-8 rounded-xl shadow-2xl max-w-md text-center"><AlertTriangle size={48} className="mx-auto mb-4" /><h2 className="text-2xl font-bold mb-2">Erro de Configuração</h2><p className="font-medium whitespace-pre-line">{authError}</p></div></div>;
 
   if (activeTab === 'login') return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1544781440-62283a00e572?q=80&w=2574&auto=format&fit=crop')"}}>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1595781572972-e0750436d936?q=80&w=2670&auto=format&fit=crop')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+    }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
         <div className="flex flex-col items-center mb-6">
