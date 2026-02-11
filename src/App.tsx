@@ -110,7 +110,6 @@ const ChampionModal = ({ drivers, onSubmit, onClose, currentGuess }) => {
   );
 };
 
-// ATUALIZAÇÃO: Design da Tela de Cadastro
 const RegisterScreen = ({ onRegister, onBack }) => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', confirm: '' });
   const [showPassword, setShowPassword] = useState(false);
@@ -124,11 +123,11 @@ const RegisterScreen = ({ onRegister, onBack }) => {
   };
   
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1541348263662-e068662d82af?q=80&w=2574&auto=format&fit=crop')"}}>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1544781440-62283a00e572?q=80&w=2574&auto=format&fit=crop')"}}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
         <div className="flex flex-col items-center mb-6">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 invert" />
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 w-auto" style={{ filter: "brightness(0) saturate(100%) invert(18%) sepia(88%) saturate(5946%) hue-rotate(356deg) brightness(93%) contrast(114%)" }} />
             <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">CRIAR CONTA</h1>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -144,7 +143,11 @@ const RegisterScreen = ({ onRegister, onBack }) => {
               value={formData.password} 
               onChange={e => setFormData({...formData, password: e.target.value})}
             />
-            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+            <button 
+              type="button" 
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
@@ -158,7 +161,11 @@ const RegisterScreen = ({ onRegister, onBack }) => {
               value={formData.confirm} 
               onChange={e => setFormData({...formData, confirm: e.target.value})}
             />
-            <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+            <button 
+              type="button" 
+              onClick={() => setShowConfirm(!showConfirm)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
               {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
@@ -505,11 +512,11 @@ export default function App() {
   if (authError) return <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6"><div className="bg-white text-red-900 p-8 rounded-xl shadow-2xl max-w-md text-center"><AlertTriangle size={48} className="mx-auto mb-4" /><h2 className="text-2xl font-bold mb-2">Erro de Configuração</h2><p className="font-medium whitespace-pre-line">{authError}</p></div></div>;
 
   if (activeTab === 'login') return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1541348263662-e068662d82af?q=80&w=2574&auto=format&fit=crop')"}}>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1544781440-62283a00e572?q=80&w=2574&auto=format&fit=crop')"}}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
         <div className="flex flex-col items-center mb-6">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 invert" />
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 w-auto" style={{ filter: "brightness(0) saturate(100%) invert(18%) sepia(88%) saturate(5946%) hue-rotate(356deg) brightness(93%) contrast(114%)" }} />
             <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">F1 BOLÃO '26</h1>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); login(e.target[0].value, e.target[1].value); }} className="space-y-5">
