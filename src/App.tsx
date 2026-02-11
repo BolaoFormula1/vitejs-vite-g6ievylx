@@ -110,6 +110,7 @@ const ChampionModal = ({ drivers, onSubmit, onClose, currentGuess }) => {
   );
 };
 
+// ATUALIZAÇÃO: Design da Tela de Cadastro
 const RegisterScreen = ({ onRegister, onBack }) => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', confirm: '' });
   const [showPassword, setShowPassword] = useState(false);
@@ -121,28 +122,29 @@ const RegisterScreen = ({ onRegister, onBack }) => {
     if (formData.password.length < 3) return alert("Senha muito curta.");
     onRegister(formData);
   };
+  
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
-      <div className="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700">
-        <h1 className="text-3xl font-black italic text-red-600 mb-6 text-center">CRIAR CONTA</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1541348263662-e068662d82af?q=80&w=2574&auto=format&fit=crop')"}}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+      <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
+        <div className="flex flex-col items-center mb-6">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 invert" />
+            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">CRIAR CONTA</h1>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="text" placeholder="Nome Completo" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
-          <input type="email" placeholder="E-mail" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}/>
+          <input type="text" placeholder="Nome Completo" className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:outline-none" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
+          <input type="email" placeholder="E-mail" className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:outline-none" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}/>
           
           <div className="relative">
             <input 
               type={showPassword ? "text" : "password"} 
               placeholder="Senha" 
-              className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" 
+              className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 pr-10 focus:ring-2 focus:ring-red-600 focus:outline-none" 
               required 
               value={formData.password} 
               onChange={e => setFormData({...formData, password: e.target.value})}
             />
-            <button 
-              type="button" 
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-            >
+            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
@@ -151,23 +153,19 @@ const RegisterScreen = ({ onRegister, onBack }) => {
             <input 
               type={showConfirm ? "text" : "password"} 
               placeholder="Confirmar Senha" 
-              className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" 
+              className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 pr-10 focus:ring-2 focus:ring-red-600 focus:outline-none" 
               required 
               value={formData.confirm} 
               onChange={e => setFormData({...formData, confirm: e.target.value})}
             />
-            <button 
-              type="button" 
-              onClick={() => setShowConfirm(!showConfirm)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-            >
+            <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
               {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
 
-          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 font-bold py-3 rounded transition">CADASTRAR</button>
+          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded transition shadow-lg transform active:scale-95">CADASTRAR</button>
         </form>
-        <button onClick={onBack} className="w-full text-center mt-4 text-sm text-gray-500 hover:text-white underline">Voltar para Login</button>
+        <button onClick={onBack} className="w-full text-center mt-6 text-sm text-gray-400 hover:text-white underline transition">Voltar para Login</button>
       </div>
     </div>
   );
@@ -265,19 +263,18 @@ export default function App() {
 
   // ALGORITMO DE DESEMPATE (COM CORREÇÃO PARA APOSTAS AUTOMÁTICAS)
   const calculateStageWinner = (currentRaceId, currentResults, allBets, allUsers) => {
-    // Ordena corridas para reconstruir histórico
     const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    // Filtra apenas usuários válidos
+    const currentIndex = sortedRaces.findIndex(r => r.id === currentRaceId);
+    const prevRace = currentIndex > 0 ? sortedRaces[currentIndex - 1] : null;
+    const currentRace = config.races.find(r => r.id === currentRaceId);
+
     const raceBets = allUsers
         .filter(u => !u.isAdmin)
         .map(u => {
-            // Reconstrução da aposta efetiva (Lógica igual ao Ranking)
             let effectiveBet = null;
             let streak = 0;
             let lastBet = null;
 
-            // Percorre histórico até a corrida atual para determinar a aposta válida
             for (const r of sortedRaces) {
                 const realBet = allBets[`${r.id}_${u.id}`];
                 let currentRaceBet = realBet;
@@ -299,17 +296,14 @@ export default function App() {
                     lastBet = realBet;
                 }
                 
-                // Se chegamos na corrida que estamos calculando, essa é a aposta efetiva
                 if (r.id === currentRaceId) {
                     effectiveBet = currentRaceBet;
                     break;
                 }
             }
 
-            // Se não tem aposta válida (ex: 2ª falta), zera
             if (!effectiveBet) return { userId: u.id, name: u.name, points: 0, matches: [], bet: null };
 
-            // Calcula pontos
             let points = 0;
             const matches = []; 
             if (currentResults) {
@@ -328,14 +322,12 @@ export default function App() {
 
     if (raceBets.length === 0) return [];
 
-    // 1. Maior Pontuação
     const maxPoints = Math.max(...raceBets.map(r => r.points));
     if (maxPoints === 0) return []; 
     let candidates = raceBets.filter(r => r.points === maxPoints);
 
     if (candidates.length === 1) return candidates;
 
-    // 2. Desempate Olímpico
     for (let i = 0; i < 10; i++) {
         const withPos = candidates.filter(c => c.matches.includes(i));
         if (withPos.length > 0 && withPos.length < candidates.length) {
@@ -344,13 +336,11 @@ export default function App() {
         if (candidates.length === 1) return candidates;
     }
 
-    // 3. Desempate Piloto do Dia
     const withDoD = candidates.filter(c => c.bet?.driverOfDay === currentResults.driverOfDay);
     if (withDoD.length > 0 && withDoD.length < candidates.length) {
         return withDoD;
     }
 
-    // 4. Empate persistente
     return candidates;
   };
 
@@ -360,7 +350,6 @@ export default function App() {
     const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
     const finishedRaces = sortedRaces.filter(r => latestResults[r.id]);
 
-    // Calcular Vencedores Financeiros
     const winnersMap = {}; 
     finishedRaces.forEach(r => {
         if (r.id !== 24) { 
@@ -371,7 +360,6 @@ export default function App() {
         }
     });
 
-    // Cálculo de Pontos (Lógica existente)
     users.forEach(u => {
       if (u.isAdmin) return;
       let total = 0;
@@ -517,16 +505,20 @@ export default function App() {
   if (authError) return <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6"><div className="bg-white text-red-900 p-8 rounded-xl shadow-2xl max-w-md text-center"><AlertTriangle size={48} className="mx-auto mb-4" /><h2 className="text-2xl font-bold mb-2">Erro de Configuração</h2><p className="font-medium whitespace-pre-line">{authError}</p></div></div>;
 
   if (activeTab === 'login') return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
-      <div className="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700">
-        <h1 className="text-4xl font-black italic text-red-600 mb-2 text-center">F1 BOLÃO '26</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1541348263662-e068662d82af?q=80&w=2574&auto=format&fit=crop')"}}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+      <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
+        <div className="flex flex-col items-center mb-6">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 invert" />
+            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">F1 BOLÃO '26</h1>
+        </div>
         <form onSubmit={(e) => { e.preventDefault(); login(e.target[0].value, e.target[1].value); }} className="space-y-5">
-          <input type="email" placeholder="E-mail" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" />
+          <input type="email" placeholder="E-mail" className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:outline-none" />
           <div className="relative">
             <input 
               type={showLoginPassword ? "text" : "password"} 
               placeholder="Senha" 
-              className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" 
+              className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 pr-10 focus:ring-2 focus:ring-red-600 focus:outline-none" 
             />
             <button 
               type="button" 
@@ -537,9 +529,9 @@ export default function App() {
             </button>
           </div>
           {loginError && <div className="text-red-400 text-xs text-center font-bold">{loginError}</div>}
-          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 font-bold py-3 rounded transition">ENTRAR</button>
+          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded transition shadow-lg transform active:scale-95">ENTRAR</button>
         </form>
-        <button onClick={() => setActiveTab('register')} className="mt-6 w-full text-center text-sm hover:underline">Criar Conta</button>
+        <button onClick={() => setActiveTab('register')} className="mt-6 w-full text-center text-sm text-gray-400 hover:text-white underline transition">Criar Conta</button>
       </div>
     </div>
   );
@@ -610,7 +602,7 @@ export default function App() {
                   <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2 uppercase italic leading-none text-gray-900"><Flag className="text-red-600" size={24}/> {race?.name}</h2>
                   <p className="text-xs text-gray-400 mt-1 font-bold">{new Date(race?.date).toLocaleDateString()} {race?.isBrazil && '🇧🇷 DOBRADO'}</p>
                   {isLocked ? (
-                    <div className="mt-2"><p className="text-xs font-bold text-red-600 flex items-center gap-1"><Lock size={12}/> Apostas Encerradas</p>{isAutoBet && (<div className="mt-2 bg-yellow-100 text-yellow-800 p-3 rounded-lg border-l-4 border-yellow-500 flex items-center gap-2 shadow-sm"><RefreshCw size={20} className="shrink-0" /><div><p className="font-bold text-sm uppercase">Preenchimento Automático</p><p className="text-xs">{autoReason}</p></div></div>)}</div>
+                    <div className="mt-2"><p className="text-xs font-bold text-red-600 flex items-center gap-1"><Lock size={12}/> Apostas Encerradas</p>{isAutoBet && (<div className="mt-1 bg-yellow-100 text-yellow-800 p-3 rounded-lg border-l-4 border-yellow-500 flex items-center gap-2 shadow-sm"><RefreshCw size={20} className="shrink-0" /><div><p className="font-bold text-sm uppercase">Preenchimento Automático</p><p className="text-xs">{autoReason}</p></div></div>)}</div>
                   ) : (
                     <div className="flex items-center gap-3 mt-1"><p className="text-xs font-bold text-green-600 flex items-center gap-1"><Clock size={12}/> Aberto até {new Date(race.deadline).toLocaleString()}</p>{saveStatus === 'saving' && <span className="text-xs font-bold text-blue-500 animate-pulse flex items-center gap-1"><Save size={12}/> Salvando...</span>}{saveStatus === 'success' && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle2 size={12}/> Salvo</span>}{saveStatus === 'error' && <span className="text-xs font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={12}/> Erro ao salvar</span>}</div>
                   )}
