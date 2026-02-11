@@ -89,7 +89,7 @@ const POINTS_SYSTEM_BRAZIL = [50, 36, 30, 24, 20, 16, 12, 8, 4, 2];
 
 // Componentes UI
 const PrintStyles = () => (
-  <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; color: black !important; background: white !important; } .no-print { display: none !important; } }`}</style>
+  <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; color: black !important; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; background: white !important; } .no-print { display: none !important; } }`}</style>
 );
 
 const ChampionModal = ({ drivers, onSubmit, onClose, currentGuess }) => {
@@ -138,7 +138,11 @@ const RegisterScreen = ({ onRegister, onBack }) => {
               value={formData.password} 
               onChange={e => setFormData({...formData, password: e.target.value})}
             />
-            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+            <button 
+              type="button" 
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
@@ -152,7 +156,11 @@ const RegisterScreen = ({ onRegister, onBack }) => {
               value={formData.confirm} 
               onChange={e => setFormData({...formData, confirm: e.target.value})}
             />
-            <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+            <button 
+              type="button" 
+              onClick={() => setShowConfirm(!showConfirm)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
               {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
@@ -262,82 +270,12 @@ export default function App() {
     return { count, totalCollected, finalPrizePool, lastRaceReserve, prizePerStage };
   }, [users]);
 
-  // ALGORITMO DE DESEMPATE DA ETAPA
-  const calculateStageWinner = (currentRaceId, currentResults, allBets, allUsers) => {
-    const raceBets = allUsers
-        .filter(u => !u.isAdmin)
-        .map(u => {
-            const bet = allBets[`${currentRaceId}_${u.id}`];
-            // Recalcula pontuação para garantir consistência
-            let points = 0;
-            const matches = []; // Armazena [posição_certa, posição_certa, ...]
-            if (bet && currentResults) {
-                // ... lógica de pontos ...
-                const table = INITIAL_RACES.find(r=>r.id===currentRaceId)?.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
-                const consolation = INITIAL_RACES.find(r=>r.id===currentRaceId)?.isBrazil ? 2 : 1;
-                bet.top10.forEach((d, i) => {
-                    const pos = currentResults.top10.indexOf(d);
-                    if (pos === i) { points += table[i]; matches.push(i); } // Exact match index
-                    else if (pos !== -1) points += consolation;
-                });
-                if (bet.driverOfDay === currentResults.driverOfDay) points += 5;
-            }
-            return { userId: u.id, name: u.name, points, matches, bet };
-        });
-
-    if (raceBets.length === 0) return [];
-
-    // 1. Filtrar pelos maiores pontos
-    const maxPoints = Math.max(...raceBets.map(r => r.points));
-    let candidates = raceBets.filter(r => r.points === maxPoints);
-
-    if (candidates.length === 1) return candidates;
-
-    // 2. Desempate Olímpico (quem acertou mais o 1º, depois 2º, etc)
-    for (let i = 0; i < 10; i++) {
-        const withPos = candidates.filter(c => c.matches.includes(i));
-        if (withPos.length > 0) {
-             // Se alguém acertou essa posição, só eles continuam. 
-             // Se todos empatados acertaram, todos continuam.
-             // Se ninguém acertou, todos continuam para a próxima posição.
-             if (withPos.length < candidates.length) {
-                 candidates = withPos; 
-             }
-        }
-        if (candidates.length === 1) return candidates;
-    }
-
-    // 3. Desempate Piloto do Dia
-    const withDoD = candidates.filter(c => c.bet?.driverOfDay === currentResults.driverOfDay);
-    if (withDoD.length > 0 && withDoD.length < candidates.length) {
-        return withDoD;
-    }
-
-    // 4. Empate persistente (divisão do prêmio)
-    return candidates;
-  };
-
   const processRecalculation = async (latestResults, specificRaceId) => {
     if (!users.length) return;
     const batch = writeBatch(db);
     const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
     const finishedRaces = sortedRaces.filter(r => latestResults[r.id]);
 
-    // Calcular Vencedores Financeiros de cada etapa finalizada
-    const winnersMap = {}; // { raceId: [userId1, userId2] }
-    
-    finishedRaces.forEach(r => {
-        if (r.id !== 24) { // Ignora última etapa (regra específica)
-            const winners = calculateStageWinner(r.id, latestResults[r.id], bets, users);
-            winnersMap[r.id] = winners.map(w => w.userId);
-            
-            // Atualiza o documento de resultado com os vencedores para histórico
-            const resRef = doc(db, 'results', r.id.toString());
-            batch.update(resRef, { financialWinners: winnersMap[r.id] });
-        }
-    });
-
-    // Cálculo de Pontos (Lógica existente)
     users.forEach(u => {
       if (u.isAdmin) return;
       let total = 0;
@@ -408,7 +346,6 @@ export default function App() {
     const usersSnapshot = await getDocs(query(usersCollection, limit(1)));
     const isFirstUser = usersSnapshot.empty;
     
-    // Novo campo: discount (padrão 0)
     const newUser = { ...data, id, isAdmin: isFirstUser, points: 0, championGuess: "", paymentConfirmed: isFirstUser, discount: 0 };
 
     try { 
@@ -430,26 +367,42 @@ export default function App() {
   const autoSaveBet = async (top10, driverOfDay) => {
     if (!currentUser) return;
     const race = config.races.find(r => r.id === selectedRaceId);
-    if (new Date() > new Date(race.deadline)) { setSaveStatus('error'); return; }
+    
+    if (new Date() > new Date(race.deadline)) {
+      setSaveStatus('error');
+      return; 
+    }
+
     setSaveStatus('saving');
-    try { await setDoc(doc(db, 'bets', `${selectedRaceId}_${currentUser.id}`), { top10, driverOfDay, timestamp: new Date().toISOString() }); setSaveStatus('success'); setTimeout(() => setSaveStatus('idle'), 2000); } catch (e) { console.error("Erro autosave:", e); setSaveStatus('error'); }
+    try { 
+        await setDoc(doc(db, 'bets', `${selectedRaceId}_${currentUser.id}`), { 
+            top10, 
+            driverOfDay, 
+            timestamp: new Date().toISOString() 
+        }); 
+        setSaveStatus('success');
+        setTimeout(() => setSaveStatus('idle'), 2000); 
+    } catch (e) { 
+        console.error("Erro autosave:", e);
+        setSaveStatus('error');
+    }
   };
 
   const togglePayment = async (id, currentStatus) => {
     try { await updateDoc(doc(db, 'users', id), { paymentConfirmed: !currentStatus }); } 
     catch (e) { alert("Erro ao atualizar pagamento: " + e.message); }
   };
-  
-  // Função para atualizar desconto financeiro
-  const updateDiscount = async (id, val) => {
-    try { await updateDoc(doc(db, 'users', id), { discount: Number(val) }); }
-    catch (e) { console.error(e); }
-  };
 
   const deleteUserDoc = async (id) => {
     if (window.confirm("Remover este membro permanentemente?")) {
         try { await deleteDoc(doc(db, 'users', id)); } catch (e) { alert("Erro ao deletar: " + e.message); }
     }
+  };
+  
+  // Função para atualizar desconto financeiro
+  const updateDiscount = async (id, val) => {
+    try { await updateDoc(doc(db, 'users', id), { discount: Number(val) }); }
+    catch (e) { console.error(e); }
   };
 
   const saveRaceResult = async () => {
@@ -588,19 +541,6 @@ export default function App() {
                         </div>
                         <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><div className="flex items-center gap-2"><div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div><div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-400"}`}>+{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}</div></div></div></div>
                       </div>
-                      
-                      {/* --- NOVO: VENCEDORES FINANCEIROS DA ETAPA --- */}
-                      {results[race.id].financialWinners && results[race.id].financialWinners.length > 0 && (
-                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mt-6">
-                            <h3 className="font-bold text-blue-800 uppercase flex items-center gap-2 mb-2"><DollarSign size={16}/> Vencedores do Prêmio da Etapa ({formatCurrency(financialData.prizePerStage)})</h3>
-                            <div className="flex flex-wrap gap-2">
-                                {results[race.id].financialWinners.map(uid => {
-                                    const u = users.find(user => user.id === uid);
-                                    return <span key={uid} className="bg-white text-blue-900 px-3 py-1 rounded border border-blue-100 font-bold text-xs shadow-sm">{u?.name}</span>;
-                                })}
-                            </div>
-                        </div>
-                      )}
                   </div>
               ) : (
                 <div className={`grid grid-cols-1 md:grid-cols-2 gap-10 ${isLocked ? 'opacity-75 pointer-events-none' : ''}`}>
@@ -618,9 +558,9 @@ export default function App() {
         )}
 
         {activeTab === 'ranking' && (
-          <div className="space-y-6">
+          <div className="space-y-6 printable-area"> {/* Mover printable-area para cá */}
             {/* CARD DE PREMIAÇÃO GERAL */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-700 text-white p-6 rounded-xl shadow-lg">
+            <div className="bg-gradient-to-r from-green-600 to-emerald-700 text-white p-6 rounded-xl shadow-lg border border-gray-200">
                 <h2 className="text-lg font-black uppercase mb-4 flex items-center gap-2 border-b border-green-500 pb-2"><Banknote/> Premiação Total (Estimada)</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                     <div><p className="text-xs opacity-75 uppercase">1º Lugar (50%)</p><p className="font-black text-xl">{formatCurrency(financialData.finalPrizePool * 0.50)}</p></div>
@@ -634,7 +574,7 @@ export default function App() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-md overflow-hidden printable-area">
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 <div className="bg-red-600 p-5 text-white flex justify-between items-center"><h2 className="text-xl font-black italic flex items-center gap-2 uppercase tracking-tighter"><Trophy size={20}/> Classificação</h2><button onClick={() => window.print()} className="p-2 hover:bg-red-700 rounded transition no-print"><Printer size={20}/></button></div>
                 <table className="w-full text-left">
                 <thead><tr className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 border-b"><th className="p-4">Pos</th><th className="p-4">Nome</th><th className="p-4 text-right pr-6">Pts</th></tr></thead>
@@ -650,41 +590,9 @@ export default function App() {
 
         {activeTab === 'conference' && (
             <div className="bg-white p-6 rounded-xl shadow-md printable-area">
-                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print">
-                    <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2>
-                    <div className="flex gap-2 items-center">
-                        <select className="p-2 border rounded font-bold text-xs bg-gray-50" value={conferenceRaceId} onChange={e => setConferenceRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
-                        <button onClick={() => window.print()} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button>
-                    </div>
-                </div>
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2><div className="flex gap-2 items-center"><select className="p-2 border rounded font-bold text-xs bg-gray-50" value={conferenceRaceId} onChange={e => setConferenceRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select><button onClick={() => window.print()} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button></div></div>
                 <div className="hidden print:block text-center mb-6"><h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Relatório de Palpites</h1><p className="text-gray-600">{config.races.find(r => r.id === conferenceRaceId)?.name}</p></div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left border-collapse">
-                        <thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead>
-                        <tbody>
-                            {users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => {
-                                const bet = bets[`${conferenceRaceId}_${u.id}`];
-                                let displayBet = bet;
-                                if (!displayBet) {
-                                    const race = config.races.find(r => r.id === conferenceRaceId);
-                                    if (new Date() > new Date(race.deadline)) {
-                                        const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
-                                        const currentIndex = sortedRaces.findIndex(r => r.id === conferenceRaceId);
-                                        if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } 
-                                        else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; }
-                                    }
-                                }
-                                return (
-                                    <tr key={u.id} className="border-b hover:bg-gray-50">
-                                        <td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>
-                                        {Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}
-                                        <td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>
-                                    </tr>
-                                )
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                <div className="overflow-x-auto"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead><tbody>{users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => { const bet = bets[`${conferenceRaceId}_${u.id}`]; let displayBet = bet; if (!displayBet) { const race = config.races.find(r => r.id === conferenceRaceId); if (new Date() > new Date(race.deadline)) { const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date)); const currentIndex = sortedRaces.findIndex(r => r.id === conferenceRaceId); if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; } } } return (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>{Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}<td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td></tr>) })}</tbody></table></div>
             </div>
         )}
 
