@@ -461,9 +461,49 @@ export default function App() {
 
   const race = config.races.find(r => r.id === selectedRaceId);
   const isLocked = new Date() > new Date(race.deadline);
-  const currentBet = bets[`${selectedRaceId}_${currentUser?.id}`] || { top10: Array(10).fill(""), driverOfDay: "" };
+  
+  // LÓGICA DE EXIBIÇÃO DE APOSTA (MANUAL OU AUTOMÁTICA)
+  const getDisplayBet = () => {
+    const realBet = bets[`${selectedRaceId}_${currentUser?.id}`];
+    
+    // 1. Se tem aposta real, usa ela
+    if (realBet) return { bet: realBet, isAuto: false, reason: null };
 
-  // CALCULO DO TOTAL DE PONTOS DA ETAPA (NOVO)
+    // 2. Se não tem aposta e o prazo já passou, calcula a automática para visualização
+    if (isLocked) {
+      const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const currentIndex = sortedRaces.findIndex(r => r.id === selectedRaceId);
+
+      // Tenta repetir a anterior (se houver aposta na anterior)
+      if (currentIndex > 0) {
+        const prevRace = sortedRaces[currentIndex - 1];
+        const prevBet = bets[`${prevRace.id}_${currentUser?.id}`];
+        if (prevBet) {
+            return { 
+                bet: prevBet, 
+                isAuto: true, 
+                reason: `Aposta repetida da etapa anterior (${prevRace.name})` 
+            };
+        }
+      }
+
+      // Se for a primeira ou não tiver anterior, usa o Grid (se cadastrado)
+      if (race.startingGrid && race.startingGrid.length > 0) {
+         return { 
+           bet: { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }, 
+           isAuto: true, 
+           reason: "Aposta automática baseada no Grid de Largada" 
+         };
+      }
+    }
+
+    // Default vazio
+    return { bet: { top10: Array(10).fill(""), driverOfDay: "" }, isAuto: false, reason: null };
+  };
+
+  const { bet: currentBet, isAuto: isAutoBet, reason: autoReason } = getDisplayBet();
+
+  // CALCULO DO TOTAL DE PONTOS DA ETAPA
   let totalRacePoints = 0;
   if(results[race.id]) {
       const officialResult = results[race.id];
@@ -518,6 +558,12 @@ export default function App() {
                   {isLocked ? (
                     <div className="mt-2">
                         <p className="text-xs font-bold text-red-600 flex items-center gap-1"><Lock size={12}/> Apostas Encerradas</p>
+                        {isAutoBet && (
+                            <div className="mt-1 bg-yellow-50 text-yellow-800 text-[10px] p-2 rounded border border-yellow-200 flex items-center gap-2">
+                                <RefreshCw size={12} />
+                                <strong>Atenção:</strong> {autoReason}
+                            </div>
+                        )}
                     </div>
                   ) : (
                     <div className="flex items-center gap-3 mt-1">
@@ -740,7 +786,7 @@ export default function App() {
                           >
                             {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                           </select>
-                          <button onClick={() => window.print()} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2">
+                          <button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2">
                              <Printer size={16}/> Imprimir / PDF
                           </button>
                       </div>
