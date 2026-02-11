@@ -364,72 +364,6 @@ export default function App() {
     }
   };
 
-  const handlePrintAudit = () => {
-    const raceName = config.races.find(r => r.id === adminRaceId)?.name || "Corrida";
-    const auditUsers = users.filter(u => !u.isAdmin).sort((a, b) => a.name.localeCompare(b.name));
-    
-    let tableHtml = "";
-    
-    auditUsers.forEach(u => {
-      const bet = bets[`${adminRaceId}_${u.id}`];
-      
-      let tds = `<td style="padding:4px; border:1px solid #ccc; font-weight:bold">${u.name}</td>`;
-      
-      for(let i=0; i<10; i++) {
-        const driverFull = bet?.top10[i];
-        const driverName = driverFull ? config.drivers.find(d => d === driverFull)?.split(' ').pop() : "-";
-        tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center">${driverName || "-"}</td>`;
-      }
-      
-      const dodFull = bet?.driverOfDay;
-      const dodName = dodFull ? dodFull.split(' ').pop() : "-";
-      tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center; background:#ffecb3">${dodName}</td>`;
-      
-      tableHtml += `<tr>${tds}</tr>`;
-    });
-
-    const printContent = `
-      <html>
-        <head>
-          <title>Relatório - ${raceName}</title>
-          <style>
-            body { font-family: Arial, sans-serif; font-size: 10px; -webkit-print-color-adjust: exact; }
-            h1 { text-align: center; margin-bottom: 5px; }
-            h2 { text-align: center; margin-top: 0; color: #555; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th { background: #eee; border: 1px solid #999; padding: 5px; font-size: 9px; }
-            tr:nth-child(even) { background: #f9f9f9; }
-          </style>
-        </head>
-        <body>
-          <h1>F1 BOLÃO '26 - CONFERÊNCIA</h1>
-          <h2>${raceName}</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>PARTICIPANTE</th>
-                <th>1º</th><th>2º</th><th>3º</th><th>4º</th><th>5º</th>
-                <th>6º</th><th>7º</th><th>8º</th><th>9º</th><th>10º</th>
-                <th style="background:#ffd54f">PILOTO DIA</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tableHtml}
-            </tbody>
-          </table>
-          <div style="margin-top:20px; text-align:center; color:#999">Gerado em ${new Date().toLocaleString()}</div>
-        </body>
-        <script>
-          window.onload = function() { setTimeout(() => window.print(), 500); }
-        </script>
-      </html>
-    `;
-
-    const win = window.open('', '', 'width=900,height=600');
-    win.document.write(printContent);
-    win.document.close();
-  };
-
   if (authError) {
     return (
       <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6">
@@ -503,25 +437,6 @@ export default function App() {
 
   const { bet: currentBet, isAuto: isAutoBet, reason: autoReason } = getDisplayBet();
 
-  // CALCULO DO TOTAL DE PONTOS DA ETAPA
-  let totalRacePoints = 0;
-  if(results[race.id]) {
-      const officialResult = results[race.id];
-      const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
-      const consolation = race.isBrazil ? 2 : 1;
-
-      currentBet.top10.forEach((d, i) => {
-          if(d) {
-              const pos = officialResult.top10.indexOf(d);
-              if(pos === i) totalRacePoints += table[i];
-              else if(pos !== -1) totalRacePoints += consolation;
-          }
-      });
-      if(currentBet.driverOfDay && currentBet.driverOfDay === officialResult.driverOfDay) {
-          totalRacePoints += 5;
-      }
-  }
-
   return (
     <div className="min-h-screen bg-gray-100 pb-20 font-sans">
       <PrintStyles />
@@ -581,75 +496,18 @@ export default function App() {
               </div>
 
               {results[race.id] ? (
-                  <div className="space-y-6">
-                      <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center mb-6">
-                          <h3 className="font-bold text-green-800 uppercase">Etapa Finalizada e Conferida</h3>
-                          <p className="text-xs text-green-600">Confira abaixo a pontuação dos seus palpites</p>
-                          <p className="text-lg font-black text-green-900 mt-2">Sua Pontuação Total: {totalRacePoints}</p>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div className="space-y-3">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10 (Pontuação)</h3>
-                            {Array(10).fill(0).map((_, i) => {
-                                const driver = currentBet.top10[i];
-                                const officialResult = results[race.id];
-                                let points = 0;
-                                let style = "bg-gray-100 text-gray-400"; // default/miss
-                                
-                                if (driver) {
-                                    const officialPos = officialResult.top10.indexOf(driver);
-                                    const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
-                                    const consolation = race.isBrazil ? 2 : 1;
-
-                                    if (officialPos === i) {
-                                        points = table[i];
-                                        style = "bg-green-100 text-green-700 border-green-300 font-bold";
-                                    } else if (officialPos !== -1) {
-                                        points = consolation;
-                                        style = "bg-yellow-50 text-yellow-700 border-yellow-200";
-                                    }
-                                }
-
-                                return (
-                                    <div key={i} className="flex items-center gap-3">
-                                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
-                                        <div className="flex-1 flex items-center gap-2">
-                                             <div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>
-                                                {driver || "-"}
-                                             </div>
-                                             <div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>
-                                                +{points}
-                                             </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="space-y-6">
-                            <div className="bg-gray-50 p-5 rounded-xl border">
-                                <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia (Pontuação)</h3>
-                                <div className="flex items-center gap-2">
-                                    <div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>
-                                        {currentBet.driverOfDay || "-"}
-                                    </div>
-                                    <div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${
-                                        currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay
-                                        ? "bg-green-100 text-green-700 border-green-300"
-                                        : "bg-gray-100 text-gray-400"
-                                    }`}>
-                                        +{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                      </div>
-                  </div>
+                <div className="bg-gray-50 p-8 rounded-lg text-center border-2 border-dashed">
+                  <Shield size={48} className="mx-auto text-gray-300 mb-4"/>
+                  <p className="font-black text-gray-400 uppercase mb-2">Etapa Finalizada</p>
+                  <p className="text-xs text-gray-500">Vencedor: {results[race.id].top10[0]}</p>
+                </div>
               ) : (
                 <div className={`grid grid-cols-1 md:grid-cols-2 gap-10 ${isLocked ? 'opacity-75 pointer-events-none' : ''}`}>
                   <div className="space-y-3">
-                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10</h3>
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
+                        Seu Top 10 
+                        {isAutoBet && <span className="ml-2 text-yellow-600 font-normal normal-case">(Preenchimento Automático)</span>}
+                    </h3>
                     {Array(10).fill(0).map((_, i) => (
                       <div key={i} className="flex items-center gap-3">
                         <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
@@ -786,7 +644,7 @@ export default function App() {
                           >
                             {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                           </select>
-                          <button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2">
+                          <button onClick={() => window.print()} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2">
                              <Printer size={16}/> Imprimir / PDF
                           </button>
                       </div>
