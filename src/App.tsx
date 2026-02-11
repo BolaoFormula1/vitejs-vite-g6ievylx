@@ -263,51 +263,74 @@ export default function App() {
     return { count, totalCollected, finalPrizePool, lastRaceReserve, prizePerStage };
   }, [users]);
 
-  // ALGORITMO DE DESEMPATE DA ETAPA
+  // ALGORITMO DE DESEMPATE (COM CORREÇÃO PARA APOSTAS AUTOMÁTICAS)
   const calculateStageWinner = (currentRaceId, currentResults, allBets, allUsers) => {
-    // Ordenar corridas para saber a anterior
+    // Ordena corridas para reconstruir histórico
     const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
-    const currentIndex = sortedRaces.findIndex(r => r.id === currentRaceId);
-    const prevRace = currentIndex > 0 ? sortedRaces[currentIndex - 1] : null;
-    const currentRace = config.races.find(r => r.id === currentRaceId);
-
+    
+    // Filtra apenas usuários válidos
     const raceBets = allUsers
         .filter(u => !u.isAdmin)
         .map(u => {
-            // Tenta obter aposta, ou simula automática
-            let bet = allBets[`${currentRaceId}_${u.id}`];
-            if (!bet) {
-                 if (prevRace && allBets[`${prevRace.id}_${u.id}`]) {
-                     bet = allBets[`${prevRace.id}_${u.id}`]; // Repete anterior
-                 } else if (currentRace.startingGrid && currentRace.startingGrid.length > 0) {
-                     bet = { top10: currentRace.startingGrid, driverOfDay: currentRace.startingGrid[0] }; // Grid
-                 }
+            // Reconstrução da aposta efetiva (Lógica igual ao Ranking)
+            let effectiveBet = null;
+            let streak = 0;
+            let lastBet = null;
+
+            // Percorre histórico até a corrida atual para determinar a aposta válida
+            for (const r of sortedRaces) {
+                const realBet = allBets[`${r.id}_${u.id}`];
+                let currentRaceBet = realBet;
+
+                if (!realBet) {
+                    streak++;
+                    if (streak === 1) {
+                        if (lastBet) currentRaceBet = lastBet;
+                        else if (r.startingGrid && r.startingGrid.length > 0) {
+                            currentRaceBet = { top10: r.startingGrid, driverOfDay: r.startingGrid[0] };
+                        } else {
+                            currentRaceBet = null;
+                        }
+                    } else {
+                        currentRaceBet = null;
+                    }
+                } else {
+                    streak = 0;
+                    lastBet = realBet;
+                }
+                
+                // Se chegamos na corrida que estamos calculando, essa é a aposta efetiva
+                if (r.id === currentRaceId) {
+                    effectiveBet = currentRaceBet;
+                    break;
+                }
             }
 
-            // Se não tem bet nenhuma, zera
-            if (!bet) return { userId: u.id, name: u.name, points: 0, matches: [], bet: null };
+            // Se não tem aposta válida (ex: 2ª falta), zera
+            if (!effectiveBet) return { userId: u.id, name: u.name, points: 0, matches: [], bet: null };
 
-            // Calcula pontos para essa "aposta" (real ou virtual)
+            // Calcula pontos
             let points = 0;
             const matches = []; 
             if (currentResults) {
-                const table = currentRace.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
-                const consolation = currentRace.isBrazil ? 2 : 1;
-                bet.top10.forEach((d, i) => {
+                const table = sortedRaces.find(r=>r.id===currentRaceId)?.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
+                const consolation = sortedRaces.find(r=>r.id===currentRaceId)?.isBrazil ? 2 : 1;
+                
+                effectiveBet.top10.forEach((d, i) => {
                     const pos = currentResults.top10.indexOf(d);
                     if (pos === i) { points += table[i]; matches.push(i); } 
                     else if (pos !== -1) points += consolation;
                 });
-                if (bet.driverOfDay === currentResults.driverOfDay) points += 5;
+                if (effectiveBet.driverOfDay === currentResults.driverOfDay) points += 5;
             }
-            return { userId: u.id, name: u.name, points, matches, bet };
+            return { userId: u.id, name: u.name, points, matches, bet: effectiveBet };
         });
 
     if (raceBets.length === 0) return [];
 
     // 1. Maior Pontuação
     const maxPoints = Math.max(...raceBets.map(r => r.points));
-    if (maxPoints === 0) return []; // Ninguém pontuou
+    if (maxPoints === 0) return []; 
     let candidates = raceBets.filter(r => r.points === maxPoints);
 
     if (candidates.length === 1) return candidates;
@@ -315,8 +338,8 @@ export default function App() {
     // 2. Desempate Olímpico
     for (let i = 0; i < 10; i++) {
         const withPos = candidates.filter(c => c.matches.includes(i));
-        if (withPos.length > 0) {
-             if (withPos.length < candidates.length) { candidates = withPos; }
+        if (withPos.length > 0 && withPos.length < candidates.length) {
+             candidates = withPos; 
         }
         if (candidates.length === 1) return candidates;
     }
@@ -467,6 +490,7 @@ export default function App() {
       await setDoc(doc(db, 'results', adminRaceId.toString()), adminResult);
       const newRaces = config.races.map(r => r.id === adminRaceId ? { ...r, status: 'finished' } : r);
       await updateDoc(doc(db, 'config', 'main'), { races: newRaces });
+      // Passa ID para forçar calculo de vencedor da etapa
       await processRecalculation({ ...results, [adminRaceId]: adminResult }, adminRaceId);
       alert("Resultado salvo, pontos e prêmios calculados!");
     } catch (e) { alert("Erro: " + e.message); }
@@ -499,8 +523,18 @@ export default function App() {
         <form onSubmit={(e) => { e.preventDefault(); login(e.target[0].value, e.target[1].value); }} className="space-y-5">
           <input type="email" placeholder="E-mail" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" />
           <div className="relative">
-            <input type={showLoginPassword ? "text" : "password"} placeholder="Senha" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" />
-            <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">{showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}</button>
+            <input 
+              type={showLoginPassword ? "text" : "password"} 
+              placeholder="Senha" 
+              className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" 
+            />
+            <button 
+              type="button" 
+              onClick={() => setShowLoginPassword(!showLoginPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
+              {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
           </div>
           {loginError && <div className="text-red-400 text-xs text-center font-bold">{loginError}</div>}
           <button type="submit" className="w-full bg-red-600 hover:bg-red-700 font-bold py-3 rounded transition">ENTRAR</button>
@@ -575,7 +609,6 @@ export default function App() {
                 <div>
                   <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2 uppercase italic leading-none text-gray-900"><Flag className="text-red-600" size={24}/> {race?.name}</h2>
                   <p className="text-xs text-gray-400 mt-1 font-bold">{new Date(race?.date).toLocaleDateString()} {race?.isBrazil && '🇧🇷 DOBRADO'}</p>
-                  
                   {isLocked ? (
                     <div className="mt-2"><p className="text-xs font-bold text-red-600 flex items-center gap-1"><Lock size={12}/> Apostas Encerradas</p>{isAutoBet && (<div className="mt-2 bg-yellow-100 text-yellow-800 p-3 rounded-lg border-l-4 border-yellow-500 flex items-center gap-2 shadow-sm"><RefreshCw size={20} className="shrink-0" /><div><p className="font-bold text-sm uppercase">Preenchimento Automático</p><p className="text-xs">{autoReason}</p></div></div>)}</div>
                   ) : (
@@ -587,11 +620,11 @@ export default function App() {
 
               {results[race.id] ? (
                   <div className="space-y-6">
-                      <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center mb-6"><h3 className="font-bold text-green-800 uppercase">Etapa Finalizada e Conferida</h3><p className="text-xs text-green-600">Confira abaixo a pontuação dos seus palpites</p><p className="text-2xl font-black text-green-900 mt-2">{totalRacePoints} Pontos</p>
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center mb-6"><h3 className="font-bold text-green-800 uppercase">Etapa Finalizada</h3><p className="text-xs text-green-600">Confira sua pontuação abaixo</p><p className="text-2xl font-black text-green-900 mt-2">{totalRacePoints} Pontos</p>
                           {isStageWinner && (<div className="mt-4 bg-yellow-100 text-yellow-900 p-3 rounded-lg border border-yellow-300 font-bold flex flex-col items-center animate-bounce shadow-lg"><span className="flex items-center gap-2 uppercase text-sm"><Trophy size={18}/> Vencedor da Etapa!</span><span className="text-lg">Prêmio: {formatCurrency(financialData.prizePerStage)}</span></div>)}
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div className="space-y-3"><h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10 (Pontuação)</h3>
+                        <div className="space-y-3"><h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10</h3>
                             {Array(10).fill(0).map((_, i) => {
                                 const driver = currentBet.top10[i]; const officialResult = results[race.id]; let points = 0; let style = "bg-gray-100 text-gray-400";
                                 if (driver) { const officialPos = officialResult.top10.indexOf(driver); const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM; const consolation = race.isBrazil ? 2 : 1;
@@ -599,7 +632,7 @@ export default function App() {
                                 return (<div key={i} className="flex items-center gap-3"><span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span><div className="flex-1 flex items-center gap-2"><div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>{driver || "-"}</div><div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>+{points}</div></div></div>);
                             })}
                         </div>
-                        <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia (Pontuação)</h3><div className="flex items-center gap-2"><div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div><div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-400"}`}>+{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}</div></div></div></div>
+                        <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><div className="flex items-center gap-2"><div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div><div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-400"}`}>+{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}</div></div></div></div>
                       </div>
                   </div>
               ) : (
