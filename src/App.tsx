@@ -5,7 +5,7 @@ import {
   Flag, Lock, LogIn, UserPlus, Trash2, Calendar, PlusCircle, XCircle, 
   Clock, Mail, Key, UserCog, Send, Printer, Award, Shield, DollarSign,
   Link as LinkIcon, Copy, Banknote, UserCheck, UserX, ChevronRight, History,
-  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, RefreshCw, FileText
+  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, RefreshCw, FileText, Eye, EyeOff
 } from 'lucide-react';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -112,6 +112,9 @@ const ChampionModal = ({ drivers, onSubmit, onClose, currentGuess }) => {
 
 const RegisterScreen = ({ onRegister, onBack }) => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', confirm: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirm) return alert("Senhas não conferem.");
@@ -125,8 +128,35 @@ const RegisterScreen = ({ onRegister, onBack }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="text" placeholder="Nome Completo" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
           <input type="email" placeholder="E-mail" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}/>
-          <input type="password" placeholder="Senha" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}/>
-          <input type="password" placeholder="Confirmar Senha" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.confirm} onChange={e => setFormData({...formData, confirm: e.target.value})}/>
+          
+          <div className="relative">
+            <input 
+              type={showPassword ? "text" : "password"} 
+              placeholder="Senha" 
+              className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" 
+              required 
+              value={formData.password} 
+              onChange={e => setFormData({...formData, password: e.target.value})}
+            />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+
+          <div className="relative">
+            <input 
+              type={showConfirm ? "text" : "password"} 
+              placeholder="Confirmar Senha" 
+              className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" 
+              required 
+              value={formData.confirm} 
+              onChange={e => setFormData({...formData, confirm: e.target.value})}
+            />
+            <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+              {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+
           <button type="submit" className="w-full bg-red-600 hover:bg-red-700 font-bold py-3 rounded transition">CADASTRAR</button>
         </form>
         <button onClick={onBack} className="w-full text-center mt-4 text-sm text-gray-500 hover:text-white underline">Voltar para Login</button>
@@ -154,6 +184,7 @@ export default function App() {
   const [editingRace, setEditingRace] = useState(null);
   const [authError, setAuthError] = useState("");
   const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'success' | 'error'
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => { 
@@ -364,6 +395,10 @@ export default function App() {
     }
   };
 
+  const handlePrintAudit = () => {
+    window.print();
+  };
+
   if (authError) {
     return (
       <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6">
@@ -382,7 +417,22 @@ export default function App() {
         <h1 className="text-4xl font-black italic text-red-600 mb-2 text-center">F1 BOLÃO '26</h1>
         <form onSubmit={(e) => { e.preventDefault(); login(e.target[0].value, e.target[1].value); }} className="space-y-5">
           <input type="email" placeholder="E-mail" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" />
-          <input type="password" placeholder="Senha" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" />
+          
+          <div className="relative">
+            <input 
+              type={showLoginPassword ? "text" : "password"} 
+              placeholder="Senha" 
+              className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" 
+            />
+            <button 
+              type="button" 
+              onClick={() => setShowLoginPassword(!showLoginPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
+              {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+
           {loginError && <div className="text-red-400 text-xs text-center font-bold">{loginError}</div>}
           <button type="submit" className="w-full bg-red-600 hover:bg-red-700 font-bold py-3 rounded transition">ENTRAR</button>
         </form>
@@ -399,43 +449,44 @@ export default function App() {
   // LÓGICA DE EXIBIÇÃO DE APOSTA (MANUAL OU AUTOMÁTICA)
   const getDisplayBet = () => {
     const realBet = bets[`${selectedRaceId}_${currentUser?.id}`];
-    
-    // 1. Se tem aposta real, usa ela
     if (realBet) return { bet: realBet, isAuto: false, reason: null };
 
-    // 2. Se não tem aposta e o prazo já passou, calcula a automática para visualização
     if (isLocked) {
       const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
       const currentIndex = sortedRaces.findIndex(r => r.id === selectedRaceId);
 
-      // Tenta repetir a anterior (se houver aposta na anterior)
       if (currentIndex > 0) {
         const prevRace = sortedRaces[currentIndex - 1];
         const prevBet = bets[`${prevRace.id}_${currentUser?.id}`];
-        if (prevBet) {
-            return { 
-                bet: prevBet, 
-                isAuto: true, 
-                reason: `Aposta repetida da etapa anterior (${prevRace.name})` 
-            };
-        }
+        if (prevBet) return { bet: prevBet, isAuto: true, reason: `Repetida de ${prevRace.name}` };
       }
-
-      // Se for a primeira ou não tiver anterior, usa o Grid (se cadastrado)
       if (race.startingGrid && race.startingGrid.length > 0) {
-         return { 
-           bet: { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }, 
-           isAuto: true, 
-           reason: "Aposta automática baseada no Grid de Largada" 
-         };
+         return { bet: { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }, isAuto: true, reason: "Automática via Grid" };
       }
     }
-
-    // Default vazio
     return { bet: { top10: Array(10).fill(""), driverOfDay: "" }, isAuto: false, reason: null };
   };
 
   const { bet: currentBet, isAuto: isAutoBet, reason: autoReason } = getDisplayBet();
+
+  // CALCULO DO TOTAL DE PONTOS DA ETAPA
+  let totalRacePoints = 0;
+  if(results[race.id]) {
+      const officialResult = results[race.id];
+      const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
+      const consolation = race.isBrazil ? 2 : 1;
+
+      currentBet.top10.forEach((d, i) => {
+          if(d) {
+              const pos = officialResult.top10.indexOf(d);
+              if(pos === i) totalRacePoints += table[i];
+              else if(pos !== -1) totalRacePoints += consolation;
+          }
+      });
+      if(currentBet.driverOfDay && currentBet.driverOfDay === officialResult.driverOfDay) {
+          totalRacePoints += 5;
+      }
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 pb-20 font-sans">
@@ -496,18 +547,75 @@ export default function App() {
               </div>
 
               {results[race.id] ? (
-                <div className="bg-gray-50 p-8 rounded-lg text-center border-2 border-dashed">
-                  <Shield size={48} className="mx-auto text-gray-300 mb-4"/>
-                  <p className="font-black text-gray-400 uppercase mb-2">Etapa Finalizada</p>
-                  <p className="text-xs text-gray-500">Vencedor: {results[race.id].top10[0]}</p>
-                </div>
+                  <div className="space-y-6">
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center mb-6">
+                          <h3 className="font-bold text-green-800 uppercase">Etapa Finalizada e Conferida</h3>
+                          <p className="text-xs text-green-600">Confira abaixo a pontuação dos seus palpites</p>
+                          <p className="text-lg font-black text-green-900 mt-2">Sua Pontuação Total: {totalRacePoints}</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-3">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10 (Pontuação)</h3>
+                            {Array(10).fill(0).map((_, i) => {
+                                const driver = currentBet.top10[i];
+                                const officialResult = results[race.id];
+                                let points = 0;
+                                let style = "bg-gray-100 text-gray-400"; // default/miss
+                                
+                                if (driver) {
+                                    const officialPos = officialResult.top10.indexOf(driver);
+                                    const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
+                                    const consolation = race.isBrazil ? 2 : 1;
+
+                                    if (officialPos === i) {
+                                        points = table[i];
+                                        style = "bg-green-100 text-green-700 border-green-300 font-bold";
+                                    } else if (officialPos !== -1) {
+                                        points = consolation;
+                                        style = "bg-yellow-50 text-yellow-700 border-yellow-200";
+                                    }
+                                }
+
+                                return (
+                                    <div key={i} className="flex items-center gap-3">
+                                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
+                                        <div className="flex-1 flex items-center gap-2">
+                                             <div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>
+                                                {driver || "-"}
+                                             </div>
+                                             <div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>
+                                                +{points}
+                                             </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="bg-gray-50 p-5 rounded-xl border">
+                                <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia (Pontuação)</h3>
+                                <div className="flex items-center gap-2">
+                                    <div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>
+                                        {currentBet.driverOfDay || "-"}
+                                    </div>
+                                    <div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${
+                                        currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay
+                                        ? "bg-green-100 text-green-700 border-green-300"
+                                        : "bg-gray-100 text-gray-400"
+                                    }`}>
+                                        +{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                      </div>
+                  </div>
               ) : (
                 <div className={`grid grid-cols-1 md:grid-cols-2 gap-10 ${isLocked ? 'opacity-75 pointer-events-none' : ''}`}>
                   <div className="space-y-3">
-                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
-                        Seu Top 10 
-                        {isAutoBet && <span className="ml-2 text-yellow-600 font-normal normal-case">(Preenchimento Automático)</span>}
-                    </h3>
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10</h3>
                     {Array(10).fill(0).map((_, i) => (
                       <div key={i} className="flex items-center gap-3">
                         <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
@@ -644,13 +752,13 @@ export default function App() {
                           >
                             {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                           </select>
-                          <button onClick={() => window.print()} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2">
+                          <button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2">
                              <Printer size={16}/> Imprimir / PDF
                           </button>
                       </div>
                   </div>
 
-                  <div className="hidden print:block text-center mb-6">
+                  <div className="text-center mb-6">
                       <h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Relatório de Palpites</h1>
                       <p className="text-gray-600">{config.races.find(r => r.id === adminRaceId)?.name}</p>
                   </div>
