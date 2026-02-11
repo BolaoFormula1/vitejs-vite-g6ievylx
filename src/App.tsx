@@ -138,7 +138,11 @@ const RegisterScreen = ({ onRegister, onBack }) => {
               value={formData.password} 
               onChange={e => setFormData({...formData, password: e.target.value})}
             />
-            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+            <button 
+              type="button" 
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
@@ -152,7 +156,11 @@ const RegisterScreen = ({ onRegister, onBack }) => {
               value={formData.confirm} 
               onChange={e => setFormData({...formData, confirm: e.target.value})}
             />
-            <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+            <button 
+              type="button" 
+              onClick={() => setShowConfirm(!showConfirm)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
               {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
@@ -396,7 +404,69 @@ export default function App() {
   };
 
   const handlePrintAudit = () => {
-    window.print();
+    const raceName = config.races.find(r => r.id === adminRaceId)?.name || "Corrida";
+    const auditUsers = users.filter(u => !u.isAdmin).sort((a, b) => a.name.localeCompare(b.name));
+    
+    let tableHtml = "";
+    
+    auditUsers.forEach(u => {
+      const bet = bets[`${adminRaceId}_${u.id}`];
+      
+      let tds = `<td style="padding:4px; border:1px solid #ccc; font-weight:bold">${u.name}</td>`;
+      
+      for(let i=0; i<10; i++) {
+        const driverFull = bet?.top10[i];
+        const driverName = driverFull ? config.drivers.find(d => d === driverFull)?.split(' ').pop() : "-";
+        tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center">${driverName || "-"}</td>`;
+      }
+      
+      const dodFull = bet?.driverOfDay;
+      const dodName = dodFull ? dodFull.split(' ').pop() : "-";
+      tds += `<td style="padding:4px; border:1px solid #ccc; text-align:center; background:#ffecb3">${dodName}</td>`;
+      
+      tableHtml += `<tr>${tds}</tr>`;
+    });
+
+    const printContent = `
+      <html>
+        <head>
+          <title>Relatório - ${raceName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 10px; -webkit-print-color-adjust: exact; }
+            h1 { text-align: center; margin-bottom: 5px; }
+            h2 { text-align: center; margin-top: 0; color: #555; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #eee; border: 1px solid #999; padding: 5px; font-size: 9px; }
+            tr:nth-child(even) { background: #f9f9f9; }
+          </style>
+        </head>
+        <body>
+          <h1>F1 BOLÃO '26 - CONFERÊNCIA</h1>
+          <h2>${raceName}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>PARTICIPANTE</th>
+                <th>1º</th><th>2º</th><th>3º</th><th>4º</th><th>5º</th>
+                <th>6º</th><th>7º</th><th>8º</th><th>9º</th><th>10º</th>
+                <th style="background:#ffd54f">PILOTO DIA</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableHtml}
+            </tbody>
+          </table>
+          <div style="margin-top:20px; text-align:center; color:#999">Gerado em ${new Date().toLocaleString()}</div>
+        </body>
+        <script>
+          window.onload = function() { setTimeout(() => window.print(), 500); }
+        </script>
+      </html>
+    `;
+
+    const win = window.open('', '', 'width=900,height=600');
+    win.document.write(printContent);
+    win.document.close();
   };
 
   if (authError) {
@@ -449,21 +519,39 @@ export default function App() {
   // LÓGICA DE EXIBIÇÃO DE APOSTA (MANUAL OU AUTOMÁTICA)
   const getDisplayBet = () => {
     const realBet = bets[`${selectedRaceId}_${currentUser?.id}`];
+    
+    // 1. Se tem aposta real, usa ela
     if (realBet) return { bet: realBet, isAuto: false, reason: null };
 
+    // 2. Se não tem aposta e o prazo já passou, calcula a automática para visualização
     if (isLocked) {
       const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
       const currentIndex = sortedRaces.findIndex(r => r.id === selectedRaceId);
 
+      // Tenta repetir a anterior (se houver aposta na anterior)
       if (currentIndex > 0) {
         const prevRace = sortedRaces[currentIndex - 1];
         const prevBet = bets[`${prevRace.id}_${currentUser?.id}`];
-        if (prevBet) return { bet: prevBet, isAuto: true, reason: `Repetida de ${prevRace.name}` };
+        if (prevBet) {
+            return { 
+                bet: prevBet, 
+                isAuto: true, 
+                reason: `Aposta repetida da etapa anterior (${prevRace.name})` 
+            };
+        }
       }
+
+      // Se for a primeira ou não tiver anterior, usa o Grid (se cadastrado)
       if (race.startingGrid && race.startingGrid.length > 0) {
-         return { bet: { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }, isAuto: true, reason: "Automática via Grid" };
+         return { 
+           bet: { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }, 
+           isAuto: true, 
+           reason: "Aposta automática baseada no Grid de Largada" 
+         };
       }
     }
+
+    // Default vazio
     return { bet: { top10: Array(10).fill(""), driverOfDay: "" }, isAuto: false, reason: null };
   };
 
@@ -494,13 +582,13 @@ export default function App() {
       {showChampionModal && <ChampionModal drivers={config.drivers} currentGuess={currentUser.championGuess} onClose={() => setShowChampionModal(false)} onSubmit={async (d) => { try { await updateDoc(doc(db, 'users', currentUser.id), { championGuess: d }); setCurrentUser({...currentUser, championGuess: d}); setShowChampionModal(false); } catch(e) { alert("Erro: " + e.message); }}} />}
 
       <header className="bg-red-600 text-white p-4 sticky top-0 z-50 shadow-lg">
-        <div className={`mx-auto flex justify-between items-center ${activeTab === 'admin' && adminTab === 'audit' ? 'max-w-[98%]' : 'max-w-4xl'}`}>
+        <div className={`mx-auto flex justify-between items-center ${activeTab === 'conference' ? 'max-w-[98%]' : 'max-w-4xl'}`}>
           <h1 className="font-black italic text-xl tracking-tighter uppercase">F1 BOLÃO '26</h1>
           <button onClick={logout} className="bg-red-800 text-xs px-3 py-1 rounded font-bold uppercase hover:bg-red-900 transition flex items-center gap-2"><LogOut size={16}/> Sair</button>
         </div>
       </header>
 
-      <main className={`mx-auto p-4 space-y-6 ${activeTab === 'admin' && adminTab === 'audit' ? 'max-w-[98%]' : 'max-w-4xl'}`}>
+      <main className={`mx-auto p-4 space-y-6 ${activeTab === 'conference' ? 'max-w-[98%]' : 'max-w-4xl'}`}>
         {activeTab === 'dashboard' && (
           <>
             <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -665,12 +753,86 @@ export default function App() {
           </div>
         )}
 
+        {activeTab === 'conference' && (
+            <div className="bg-white p-6 rounded-xl shadow-md printable-area">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print">
+                    <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2>
+                    <div className="flex gap-2 items-center">
+                        <select 
+                          className="p-2 border rounded font-bold text-xs bg-gray-50" 
+                          value={conferenceRaceId} 
+                          onChange={e => setConferenceRaceId(Number(e.target.value))}
+                        >
+                          {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
+                        <button onClick={() => window.print()} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2">
+                           <Printer size={16}/> Imprimir
+                        </button>
+                    </div>
+                </div>
+
+                <div className="hidden print:block text-center mb-6">
+                    <h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Conferência</h1>
+                    <p className="text-gray-600">{config.races.find(r => r.id === conferenceRaceId)?.name}</p>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-100 border-b-2 border-gray-300">
+                                <th className="p-2 border">Partic.</th>
+                                {Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}
+                                <th className="p-2 border text-center bg-yellow-50">Piloto Dia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => {
+                                const bet = bets[`${conferenceRaceId}_${u.id}`];
+                                // Lógica de repetição/grid visual para conferência
+                                let displayBet = bet;
+                                if (!displayBet) {
+                                    // Tenta aplicar a lógica automática visual
+                                    const race = config.races.find(r => r.id === conferenceRaceId);
+                                    if (new Date() > new Date(race.deadline)) {
+                                        const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
+                                        const currentIndex = sortedRaces.findIndex(r => r.id === conferenceRaceId);
+                                        if (currentIndex > 0) {
+                                            const prevRace = sortedRaces[currentIndex - 1];
+                                            displayBet = bets[`${prevRace.id}_${u.id}`];
+                                        } else if (race.startingGrid?.length > 0) {
+                                            displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] };
+                                        }
+                                    }
+                                }
+
+                                return (
+                                    <tr key={u.id} className="border-b hover:bg-gray-50">
+                                        <td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>
+                                        {Array(10).fill(0).map((_, i) => (
+                                            <td key={i} className="p-2 border text-center truncate max-w-[60px]">
+                                                {displayBet?.top10[i] ? 
+                                                    config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() 
+                                                    : "-"}
+                                            </td>
+                                        ))}
+                                        <td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">
+                                            {displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}
+                                        </td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        )}
+
         {activeTab === 'admin' && (
           <div className="space-y-6 no-print">
             <div className="flex bg-white rounded-lg shadow-sm p-1 gap-1">
-              {['results', 'members', 'settings', 'audit'].map(t => (
+              {['results', 'members', 'settings'].map(t => (
                 <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-2 text-xs font-black uppercase rounded ${adminTab === t ? 'bg-red-600 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>
-                  {t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : t === 'audit' ? 'Conferência' : 'Configurações'}
+                  {t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : 'Configurações'}
                 </button>
               ))}
             </div>
@@ -737,65 +899,6 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {adminTab === 'audit' && (
-              <div className="bg-white p-6 rounded-xl shadow-md printable-area">
-                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print">
-                      <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência de Palpites</h2>
-                      <div className="flex gap-2 items-center">
-                          <select 
-                            className="p-2 border rounded font-bold text-xs bg-gray-50" 
-                            value={adminRaceId} 
-                            onChange={e => setAdminRaceId(Number(e.target.value))}
-                          >
-                            {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                          </select>
-                          <button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2">
-                             <Printer size={16}/> Imprimir / PDF
-                          </button>
-                      </div>
-                  </div>
-
-                  <div className="text-center mb-6">
-                      <h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Relatório de Palpites</h1>
-                      <p className="text-gray-600">{config.races.find(r => r.id === adminRaceId)?.name}</p>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                      <table className="w-full text-xs text-left border-collapse">
-                          <thead>
-                              <tr className="bg-gray-100 border-b-2 border-gray-300">
-                                  <th className="p-2 border">Participante</th>
-                                  {Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}
-                                  <th className="p-2 border text-center bg-yellow-50">Piloto Dia</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              {users.filter(u => !u.isAdmin).map(u => {
-                                  const bet = bets[`${adminRaceId}_${u.id}`];
-                                  return (
-                                      <tr key={u.id} className="border-b hover:bg-gray-50">
-                                          <td className="p-2 border font-bold">{u.name}</td>
-                                          {Array(10).fill(0).map((_, i) => (
-                                              <td key={i} className="p-2 border text-center truncate max-w-[80px]">
-                                                  {bet?.top10[i] ? 
-                                                      config.drivers.find(d => d === bet.top10[i])?.split(' ').pop() 
-                                                      : <span className="text-gray-300">-</span>
-                                                  }
-                                              </td>
-                                          ))}
-                                          <td className="p-2 border text-center bg-yellow-50 font-bold">
-                                              {bet?.driverOfDay ? bet.driverOfDay.split(' ').pop() : "-"}
-                                          </td>
-                                      </tr>
-                                  )
-                              })}
-                          </tbody>
-                      </table>
-                      <p className="text-[10px] text-gray-400 mt-4 text-center hidden print:block">Relatório gerado em {new Date().toLocaleString()}</p>
-                  </div>
               </div>
             )}
 
@@ -919,6 +1022,11 @@ export default function App() {
         <button onClick={() => setActiveTab('ranking')} className={`flex flex-col items-center ${activeTab === 'ranking' ? 'text-red-600' : 'text-gray-400'}`}>
           <Trophy size={24}/> <span className="text-[9px] font-black uppercase">Ranking</span>
         </button>
+        {currentUser?.isAdmin && (
+            <button onClick={() => setActiveTab('conference')} className={`flex flex-col items-center ${activeTab === 'conference' ? 'text-red-600' : 'text-gray-400'}`}>
+                <FileText size={24}/> <span className="text-[9px] font-black uppercase">Conferência</span>
+            </button>
+        )}
       </nav>
     </div>
   );
