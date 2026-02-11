@@ -265,7 +265,8 @@ export default function App() {
     
     // Sobra para prêmios por etapa
     const remainingForStages = totalCollected - finalPrizePool - lastRaceReserve;
-    const prizePerStage = count > 0 ? (remainingForStages / 23) : 0; // 23 etapas comuns
+    // AJUSTE: Math.floor para arredondar para baixo
+    const prizePerStage = count > 0 ? Math.floor(remainingForStages / 23) : 0; 
 
     return { count, totalCollected, finalPrizePool, lastRaceReserve, prizePerStage };
   }, [users]);
@@ -444,8 +445,18 @@ export default function App() {
         <form onSubmit={(e) => { e.preventDefault(); login(e.target[0].value, e.target[1].value); }} className="space-y-5">
           <input type="email" placeholder="E-mail" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" />
           <div className="relative">
-            <input type={showLoginPassword ? "text" : "password"} placeholder="Senha" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" />
-            <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">{showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}</button>
+            <input 
+              type={showLoginPassword ? "text" : "password"} 
+              placeholder="Senha" 
+              className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white pr-10" 
+            />
+            <button 
+              type="button" 
+              onClick={() => setShowLoginPassword(!showLoginPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
+              {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
           </div>
           {loginError && <div className="text-red-400 text-xs text-center font-bold">{loginError}</div>}
           <button type="submit" className="w-full bg-red-600 hover:bg-red-700 font-bold py-3 rounded transition">ENTRAR</button>
@@ -590,7 +601,7 @@ export default function App() {
 
         {activeTab === 'conference' && (
             <div className="bg-white p-6 rounded-xl shadow-md printable-area">
-                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2><div className="flex gap-2 items-center"><select className="p-2 border rounded font-bold text-xs bg-gray-50" value={conferenceRaceId} onChange={e => setConferenceRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select><button onClick={() => window.print()} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button></div></div>
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2><div className="flex gap-2 items-center"><select className="p-2 border rounded font-bold text-xs bg-gray-50" value={conferenceRaceId} onChange={e => setConferenceRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select><button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button></div></div>
                 <div className="hidden print:block text-center mb-6"><h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Relatório de Palpites</h1><p className="text-gray-600">{config.races.find(r => r.id === conferenceRaceId)?.name}</p></div>
                 <div className="overflow-x-auto"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead><tbody>{users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => { const bet = bets[`${conferenceRaceId}_${u.id}`]; let displayBet = bet; if (!displayBet) { const race = config.races.find(r => r.id === conferenceRaceId); if (new Date() > new Date(race.deadline)) { const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date)); const currentIndex = sortedRaces.findIndex(r => r.id === conferenceRaceId); if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; } } } return (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>{Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}<td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td></tr>) })}</tbody></table></div>
             </div>
