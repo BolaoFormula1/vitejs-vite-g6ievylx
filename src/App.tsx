@@ -68,6 +68,10 @@ try {
     initError = "Falha ao conectar no Firebase. Verifique as chaves no .env";
 }
 
+// --- IMAGEM DE FUNDO (Defina aqui para mudar em todo o app) ---
+// Dica: Use uma imagem horizontal de alta resolução (URL direta)
+const BACKGROUND_IMAGE = "https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=2670&auto=format&fit=crop"; 
+
 // --- DADOS ESTÁTICOS ---
 const INITIAL_DRIVERS = [
   "Lando Norris", "Oscar Piastri", "George Russell", "Kimi Antonelli",
@@ -146,7 +150,7 @@ const RegisterScreen = ({ onRegister, onBack }) => {
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
-        backgroundImage: "url('https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?q=80&w=2070&auto=format&fit=crop')", // Nova imagem estável
+        backgroundImage: `url('${BACKGROUND_IMAGE}')`, 
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -614,7 +618,7 @@ export default function App() {
 
   if (activeTab === 'login') return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
-        backgroundImage: "url('https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?q=80&w=2070&auto=format&fit=crop')",
+        backgroundImage: "url('https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=2670&auto=format&fit=crop')", // Nova imagem de fundo (carro de F1 na pista)
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -835,8 +839,8 @@ export default function App() {
         {activeTab === 'admin' && (
           <div className="space-y-6 no-print">
             <div className="flex bg-white rounded-lg shadow-sm p-1 gap-1">
-              {['results', 'members', 'settings', 'finance'].map(t => (
-                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-2 text-xs font-black uppercase rounded ${adminTab === t ? 'bg-red-600 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>{t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : t === 'finance' ? 'Financeiro' : 'Configurações'}</button>
+              {['results', 'members', 'settings', 'audit', 'finance'].map(t => (
+                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-2 text-xs font-black uppercase rounded ${adminTab === t ? 'bg-red-600 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>{t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : t === 'audit' ? 'Conferência' : t === 'finance' ? 'Financeiro' : 'Configurações'}</button>
               ))}
             </div>
 
@@ -929,6 +933,13 @@ export default function App() {
                     {/* --- NOVA SEÇÃO: GERENCIAR PILOTOS --- */}
                     <div className="bg-white p-6 rounded-xl shadow-md border-t-2 border-gray-100 mt-6"><h2 className="text-lg font-black uppercase text-gray-800 mb-4 flex items-center gap-2"><UserCog size={18}/> Gerenciar Pilotos</h2><div className="flex gap-2 mb-4"><input type="text" placeholder="Nome do Novo Piloto" className="flex-1 border p-2 rounded text-sm" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} /><button onClick={async () => { if(newDriverName){ await updateDoc(doc(db, 'config', 'main'), { drivers: [...config.drivers, newDriverName].sort() }); setNewDriverName(""); } }} className="bg-green-600 text-white p-2 rounded hover:bg-green-700"><PlusCircle size={20}/></button></div><div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto">{config.drivers.map(d => (<div key={d} className="flex items-center justify-between bg-gray-50 p-2 rounded text-xs font-bold border hover:bg-gray-100">{d}<button onClick={async () => { if(window.confirm(`Tem certeza que deseja remover ${d}?`)) await updateDoc(doc(db, 'config', 'main'), { drivers: config.drivers.filter(x => x !== d) }); }} className="text-gray-400 hover:text-red-600"><X size={14}/></button></div>))}</div></div>
                 </div>
+            )}
+            {activeTab === 'audit' && (
+              <div className="bg-white p-6 rounded-xl shadow-md printable-area">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2><div className="flex gap-2 items-center"><select className="p-2 border rounded font-bold text-xs bg-gray-50" value={adminRaceId} onChange={e => setAdminRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select><button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir / PDF</button></div></div>
+                  <div className="hidden print:block text-center mb-6"><h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Conferência</h1><p className="text-gray-600">{config.races.find(r => r.id === adminRaceId)?.name}</p></div>
+                  <div className="overflow-x-auto"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead><tbody>{users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => { const bet = bets[`${adminRaceId}_${u.id}`]; let displayBet = bet; if (!displayBet) { const race = config.races.find(r => r.id === adminRaceId); if (new Date() > new Date(race.deadline)) { const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date)); const currentIndex = sortedRaces.findIndex(r => r.id === adminRaceId); if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; } } } return (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>{Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}<td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td></tr>) })}</tbody></table></div>
+              </div>
             )}
           </div>
         )}
