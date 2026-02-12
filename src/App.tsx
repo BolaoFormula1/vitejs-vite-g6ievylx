@@ -245,6 +245,7 @@ export default function App() {
   const [dbError, setDbError] = useState(false);
   // Estado para indicar se os dados foram carregados
   const [isLoading, setIsLoading] = useState(true);
+  const [hasAutoSelectedRace, setHasAutoSelectedRace] = useState(false); // Flag para seleção automática única
 
   useEffect(() => {
     const initAuth = async () => { 
@@ -294,6 +295,36 @@ export default function App() {
       return () => { unsubUsers(); unsubBets(); unsubResults(); unsubConfig(); };
     } catch (e) { console.error("Erro dados:", e); }
   }, [userAuth]);
+
+  // SELEÇÃO AUTOMÁTICA DA PRÓXIMA CORRIDA (APENAS UMA VEZ)
+  useEffect(() => {
+    if (hasAutoSelectedRace || config.races.length === 0) return;
+
+    const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const now = new Date();
+
+    // Encontra a primeira corrida que ainda não "acabou" (data do evento + fim do dia > agora)
+    // Se a corrida é hoje, queremos que ela seja selecionada.
+    const nextRace = sortedRaces.find(r => {
+        const raceDate = new Date(r.date);
+        raceDate.setHours(23, 59, 59); // Considera até o final do dia da corrida
+        return raceDate >= now;
+    });
+
+    if (nextRace) {
+        setSelectedRaceId(nextRace.id);
+        setAdminRaceId(nextRace.id); // Sincroniza admin também
+    } else {
+        // Se todas passaram, seleciona a última (fim da temporada)
+        const lastRace = sortedRaces[sortedRaces.length - 1];
+        if (lastRace) {
+            setSelectedRaceId(lastRace.id);
+            setAdminRaceId(lastRace.id);
+        }
+    }
+    setHasAutoSelectedRace(true); // Marca como feito para não atrapalhar navegação manual
+  }, [config.races, hasAutoSelectedRace]);
+
 
   useEffect(() => {
     if (currentUser && !currentUser.championGuess && !currentUser.isAdmin) {
@@ -604,7 +635,13 @@ export default function App() {
             </button>
           </div>
           {loginError && <div className="text-red-400 text-xs text-center font-bold">{loginError}</div>}
-          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded transition shadow-lg transform active:scale-95">ENTRAR</button>
+          <button 
+              type="submit" 
+              disabled={isLoading}
+              className={`w-full text-white font-bold py-3 rounded transition shadow-lg transform active:scale-95 ${isLoading ? 'bg-gray-600 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+              {isLoading ? 'CARREGANDO SISTEMA...' : 'ENTRAR'}
+          </button>
         </form>
         <button onClick={() => setActiveTab('register')} className="mt-6 w-full text-center text-sm text-gray-400 hover:text-white underline transition">Criar Conta</button>
       </div>
@@ -682,7 +719,7 @@ export default function App() {
                     <div className="mt-2">
                         <p className="text-xs font-bold text-red-600 flex items-center gap-1"><Lock size={12}/> Apostas Encerradas</p>
                         {isAutoBet && (
-                            <div className="mt-2 bg-yellow-100 text-yellow-800 p-3 rounded-lg border-l-4 border-yellow-500 flex items-center gap-2 shadow-sm">
+                            <div className="mt-1 bg-yellow-100 text-yellow-800 p-3 rounded-lg border-l-4 border-yellow-500 flex items-center gap-2 shadow-sm">
                                 <RefreshCw size={20} className="shrink-0" />
                                 <div>
                                   <p className="font-bold text-sm uppercase">Preenchimento Automático</p>
@@ -726,58 +763,13 @@ export default function App() {
                         <div className="space-y-3">
                             <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10</h3>
                             {Array(10).fill(0).map((_, i) => {
-                                const driver = currentBet.top10[i];
-                                const officialResult = results[race.id];
-                                let points = 0;
-                                let style = "bg-gray-100 text-gray-400"; // default/miss
-                                
-                                if (driver) {
-                                    const officialPos = officialResult.top10.indexOf(driver);
-                                    const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
-                                    const consolation = race.isBrazil ? 2 : 1;
-
-                                    if (officialPos === i) {
-                                        points = table[i];
-                                        style = "bg-green-100 text-green-700 border-green-300 font-bold";
-                                    } else if (officialPos !== -1) {
-                                        points = consolation;
-                                        style = "bg-yellow-50 text-yellow-700 border-yellow-200";
-                                    }
-                                }
-
-                                return (
-                                    <div key={i} className="flex items-center gap-3">
-                                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
-                                        <div className="flex-1 flex items-center gap-2">
-                                             <div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>
-                                                {driver || "-"}
-                                             </div>
-                                             <div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>
-                                                +{points}
-                                             </div>
-                                        </div>
-                                    </div>
-                                );
+                                const driver = currentBet.top10[i]; const officialResult = results[race.id]; let points = 0; let style = "bg-gray-100 text-gray-400";
+                                if (driver) { const officialPos = officialResult.top10.indexOf(driver); const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM; const consolation = race.isBrazil ? 2 : 1;
+                                    if (officialPos === i) { points = table[i]; style = "bg-green-100 text-green-700 border-green-300 font-bold"; } else if (officialPos !== -1) { points = consolation; style = "bg-yellow-50 text-yellow-700 border-yellow-200"; } }
+                                return (<div key={i} className="flex items-center gap-3"><span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span><div className="flex-1 flex items-center gap-2"><div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>{driver || "-"}</div><div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>+{points}</div></div></div>);
                             })}
                         </div>
-
-                        <div className="space-y-6">
-                            <div className="bg-gray-50 p-5 rounded-xl border">
-                                <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3>
-                                <div className="flex items-center gap-2">
-                                    <div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>
-                                        {currentBet.driverOfDay || "-"}
-                                    </div>
-                                    <div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${
-                                        currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay
-                                        ? "bg-green-100 text-green-700 border-green-300"
-                                        : "bg-gray-100 text-gray-400"
-                                    }`}>
-                                        +{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><div className="flex items-center gap-2"><div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div><div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-400"}`}>+{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}</div></div></div></div>
                       </div>
                   </div>
               ) : (
@@ -785,26 +777,10 @@ export default function App() {
                   <div className="space-y-3">
                     <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10 {isAutoBet && <span className="ml-2 text-yellow-600 font-normal normal-case">(Auto)</span>}</h3>
                     {Array(10).fill(0).map((_, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
-                        <select className="flex-1 p-2 border rounded-lg bg-white text-gray-900 text-sm font-medium" value={currentBet.top10[i]} onChange={(e) => {
-                          const nt = [...currentBet.top10]; nt[i] = e.target.value; autoSaveBet(nt, currentBet.driverOfDay);
-                        }}>
-                          <option value="">Piloto...</option>
-                          {config.drivers.filter(d => !currentBet.top10.includes(d) || currentBet.top10[i] === d).map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                      </div>
+                      <div key={i} className="flex items-center gap-3"><span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span><select className="flex-1 p-2 border rounded-lg bg-white text-gray-900 text-sm font-medium" value={currentBet.top10[i]} onChange={(e) => { const nt = [...currentBet.top10]; nt[i] = e.target.value; autoSaveBet(nt, currentBet.driverOfDay); }}><option value="">Piloto...</option>{config.drivers.filter(d => !currentBet.top10.includes(d) || currentBet.top10[i] === d).map(d => <option key={d} value={d}>{d}</option>)}</select></div>
                     ))}
                   </div>
-                  <div className="space-y-6">
-                    <div className="bg-gray-50 p-5 rounded-xl border">
-                      <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3>
-                      <select className="w-full p-3 border rounded-lg font-bold text-red-600 bg-white" value={currentBet.driverOfDay} onChange={(e) => autoSaveBet(currentBet.top10, e.target.value)}>
-                        <option value="">Selecione...</option>
-                        {config.drivers.map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </div>
-                  </div>
+                  <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><select className="w-full p-3 border rounded-lg font-bold text-red-600 bg-white" value={currentBet.driverOfDay} onChange={(e) => autoSaveBet(currentBet.top10, e.target.value)}><option value="">Selecione...</option>{config.drivers.map(d => <option key={d} value={d}>{d}</option>)}</select></div></div>
                 </div>
               )}
             </div>
