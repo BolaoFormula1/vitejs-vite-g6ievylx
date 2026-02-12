@@ -29,22 +29,47 @@ import {
   writeBatch
 } from 'firebase/firestore';
 
-// --- CONFIGURAÇÃO FIREBASE ---
-const manualKeys = {
-  apiKey: "AIzaSyCzPK2ACo79F5WxSNib3kUQsXZ0lBvStfY",
-  authDomain: "bolaof12026-d6f9e.firebaseapp.com",
-  projectId: "bolaof12026-d6f9e",
-  storageBucket: "bolaof12026-d6f9e.firebasestorage.app",
-  messagingSenderId: "784210783074",
-  appId: "1:784210783074:web:4f00531d543daa733f1a3b"
+// --- CONFIGURAÇÃO FIREBASE SEGURA (.ENV) ---
+const getFirebaseConfig = () => {
+  // Tenta pegar das variáveis de ambiente (Vite/Vercel/Local)
+  const config = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
+  };
+  
+  // Se não encontrar no env, tenta ver se existe a global injetada (fallback de segurança para preview)
+  if (!config.apiKey && typeof __firebase_config !== 'undefined') {
+      return JSON.parse(__firebase_config);
+  }
+
+  return config;
 };
 
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualKeys;
+const firebaseConfig = getFirebaseConfig();
 
 // --- INICIALIZAÇÃO SEGURA ---
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+let app;
+let auth;
+let db;
+let initError = null;
+
+try {
+    // Só tenta inicializar se tivermos uma apiKey válida
+    if (firebaseConfig && firebaseConfig.apiKey) {
+        app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+    } else {
+        initError = "Variáveis de ambiente (.env) não encontradas. Configure o VITE_FIREBASE_API_KEY.";
+    }
+} catch (e) {
+    console.error("Erro na inicialização do Firebase:", e);
+    initError = "Falha ao conectar no Firebase. Verifique as chaves no .env";
+}
 
 // --- DADOS ESTÁTICOS ---
 const INITIAL_DRIVERS = [
@@ -123,6 +148,11 @@ const RegisterScreen = ({ onRegister, onBack }) => {
   };
   
   return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')", // Nova imagem de F1 em pista
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
     <div className="flex flex-col items-center justify-center min-h-screen p-4 relative" style={{
         backgroundImage: "url('https://images.unsplash.com/photo-1595781572972-e0750436d936?q=80&w=2670&auto=format&fit=crop')",
         backgroundSize: 'cover',
@@ -132,6 +162,7 @@ const RegisterScreen = ({ onRegister, onBack }) => {
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
         <div className="flex flex-col items-center mb-6">
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 w-auto" style={{ filter: "brightness(0) saturate(100%) invert(18%) sepia(88%) saturate(5946%) hue-rotate(356deg) brightness(93%) contrast(114%)" }} />
+            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">F1 BOLÃO '26</h1>
             <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">CRIAR CONTA</h1>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -187,6 +218,23 @@ const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currenc
 
 // --- APP PRINCIPAL ---
 export default function App() {
+  // SE HOUVER ERRO CRÍTICO NA INICIALIZAÇÃO (FALTA DE .ENV)
+  if (initError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-6">
+        <div className="bg-red-900/20 border border-red-500 p-6 rounded-lg max-w-md text-center">
+          <AlertTriangle size={48} className="mx-auto mb-4 text-red-500" />
+          <h2 className="text-xl font-bold mb-2">Erro de Configuração</h2>
+          <p className="text-sm opacity-80">{initError}</p>
+          <div className="mt-4 p-3 bg-black/30 rounded text-left text-xs font-mono text-gray-400">
+             Crie um arquivo .env na raiz com:<br/>
+             VITE_FIREBASE_API_KEY=...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const [userAuth, setUserAuth] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
@@ -206,11 +254,12 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [saveStatus, setSaveStatus] = useState('idle');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [dbError, setDbError] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => { 
       try { 
-        if (!auth.currentUser) await signInAnonymously(auth); 
+        if (auth && !auth.currentUser) await signInAnonymously(auth); 
       } catch (e) { 
         console.error("Erro Auth:", e); 
         if(e.code === 'auth/admin-restricted-operation') {
@@ -218,8 +267,8 @@ export default function App() {
         }
       } 
     };
-    initAuth();
-    return onAuthStateChanged(auth, setUserAuth);
+    if (auth) initAuth();
+    if (auth) return onAuthStateChanged(auth, setUserAuth);
   }, []);
 
   useEffect(() => {
@@ -235,13 +284,17 @@ export default function App() {
   useEffect(() => {
     if (!userAuth || !db) return;
     try {
-      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-      const unsubBets = onSnapshot(collection(db, 'bets'), (snap) => { const b = {}; snap.docs.forEach(d => b[d.id] = d.data()); setBets(b); });
-      const unsubResults = onSnapshot(collection(db, 'results'), (snap) => { const r = {}; snap.docs.forEach(d => r[d.id] = d.data()); setResults(r); });
+      const errorHandler = (error) => {
+        if (error.code === 'permission-denied') setDbError(true);
+      };
+
+      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => { setDbError(false); setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))); }, errorHandler);
+      const unsubBets = onSnapshot(collection(db, 'bets'), (snap) => { const b = {}; snap.docs.forEach(d => b[d.id] = d.data()); setBets(b); }, errorHandler);
+      const unsubResults = onSnapshot(collection(db, 'results'), (snap) => { const r = {}; snap.docs.forEach(d => r[d.id] = d.data()); setResults(r); }, errorHandler);
       const unsubConfig = onSnapshot(doc(db, 'config', 'main'), (snap) => {
         if (snap.exists()) setConfig(snap.data());
         else setDoc(doc(db, 'config', 'main'), { ...config, races: INITIAL_RACES }).catch(e => console.log("Init config error"));
-      });
+      }, errorHandler);
       return () => { unsubUsers(); unsubBets(); unsubResults(); unsubConfig(); };
     } catch (e) { console.error("Erro dados:", e); }
   }, [userAuth]);
@@ -272,6 +325,7 @@ export default function App() {
     return { count, totalCollected, finalPrizePool, lastRaceReserve, prizePerStage };
   }, [users]);
 
+  // ALGORITMO DE DESEMPATE DA ETAPA
   // ALGORITMO DE DESEMPATE (COM CORREÇÃO PARA APOSTAS AUTOMÁTICAS)
   const calculateStageWinner = (currentRaceId, currentResults, allBets, allUsers) => {
     const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -514,6 +568,15 @@ export default function App() {
   const handlePrintAudit = () => { window.print(); };
 
   if (authError) return <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6"><div className="bg-white text-red-900 p-8 rounded-xl shadow-2xl max-w-md text-center"><AlertTriangle size={48} className="mx-auto mb-4" /><h2 className="text-2xl font-bold mb-2">Erro de Configuração</h2><p className="font-medium whitespace-pre-line">{authError}</p></div></div>;
+
+  if (dbError) return <div className="min-h-screen bg-orange-900 text-white flex items-center justify-center p-6"><div className="bg-white text-orange-900 p-8 rounded-xl shadow-2xl max-w-md text-center"><AlertTriangle size={48} className="mx-auto mb-4 text-orange-600" /><h2 className="text-2xl font-bold mb-4">Bloqueio de Segurança</h2><p className="mb-4">O banco de dados está bloqueado. Verifique as regras no Firebase.</p><button onClick={() => window.location.reload()} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">Tentar novamente</button></div></div>;
+
+  if (activeTab === 'login') return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
 
   if (activeTab === 'login') return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 relative" style={{
