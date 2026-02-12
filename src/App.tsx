@@ -29,16 +29,27 @@ import {
   writeBatch
 } from 'firebase/firestore';
 
-// --- CONFIGURAÇÃO FIREBASE VIA .ENV ---
-// O código agora lê do arquivo .env que você configurou
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+// --- CONFIGURAÇÃO FIREBASE SEGURA (.ENV) ---
+const getFirebaseConfig = () => {
+  // Tenta pegar das variáveis de ambiente (Vite/Vercel/Local)
+  const config = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
+  };
+  
+  // Se não encontrar no env, tenta ver se existe a global injetada (fallback de segurança para preview)
+  if (!config.apiKey && typeof __firebase_config !== 'undefined') {
+      return JSON.parse(__firebase_config);
+  }
+
+  return config;
 };
+
+const firebaseConfig = getFirebaseConfig();
 
 // --- INICIALIZAÇÃO SEGURA ---
 let app;
@@ -47,12 +58,17 @@ let db;
 let initError = null;
 
 try {
-    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
+    // Só tenta inicializar se tivermos uma apiKey válida
+    if (firebaseConfig && firebaseConfig.apiKey) {
+        app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+    } else {
+        initError = "Variáveis de ambiente (.env) não encontradas. Configure o VITE_FIREBASE_API_KEY.";
+    }
 } catch (e) {
     console.error("Erro na inicialização do Firebase:", e);
-    initError = "Não foi possível conectar ao Firebase. Verifique o arquivo .env.";
+    initError = "Falha ao conectar no Firebase. Verifique as chaves no .env";
 }
 
 // --- DADOS ESTÁTICOS ---
@@ -133,7 +149,7 @@ const RegisterScreen = ({ onRegister, onBack }) => {
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
-        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')", // Imagem F1
+        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')", // Nova imagem de F1 em pista
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -142,7 +158,7 @@ const RegisterScreen = ({ onRegister, onBack }) => {
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
         <div className="flex flex-col items-center mb-6">
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 w-auto" style={{ filter: "brightness(0) saturate(100%) invert(18%) sepia(88%) saturate(5946%) hue-rotate(356deg) brightness(93%) contrast(114%)" }} />
-            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">CRIAR CONTA</h1>
+            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">F1 BOLÃO '26</h1>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="text" placeholder="Nome Completo" className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:outline-none" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
@@ -197,13 +213,18 @@ const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currenc
 
 // --- APP PRINCIPAL ---
 export default function App() {
+  // SE HOUVER ERRO CRÍTICO NA INICIALIZAÇÃO (FALTA DE .ENV)
   if (initError) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-6">
         <div className="bg-red-900/20 border border-red-500 p-6 rounded-lg max-w-md text-center">
           <AlertTriangle size={48} className="mx-auto mb-4 text-red-500" />
-          <h2 className="text-xl font-bold mb-2">Erro de Inicialização</h2>
+          <h2 className="text-xl font-bold mb-2">Erro de Configuração</h2>
           <p className="text-sm opacity-80">{initError}</p>
+          <div className="mt-4 p-3 bg-black/30 rounded text-left text-xs font-mono text-gray-400">
+             Crie um arquivo .env na raiz com:<br/>
+             VITE_FIREBASE_API_KEY=...
+          </div>
         </div>
       </div>
     );
@@ -233,7 +254,7 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => { 
       try { 
-        if (!auth.currentUser) await signInAnonymously(auth); 
+        if (auth && !auth.currentUser) await signInAnonymously(auth); 
       } catch (e) { 
         console.error("Erro Auth:", e); 
         if(e.code === 'auth/admin-restricted-operation') {
@@ -241,8 +262,8 @@ export default function App() {
         }
       } 
     };
-    initAuth();
-    return onAuthStateChanged(auth, setUserAuth);
+    if (auth) initAuth();
+    if (auth) return onAuthStateChanged(auth, setUserAuth);
   }, []);
 
   useEffect(() => {
@@ -708,8 +729,8 @@ export default function App() {
         {activeTab === 'admin' && (
           <div className="space-y-6 no-print">
             <div className="flex bg-white rounded-lg shadow-sm p-1 gap-1">
-              {['results', 'members', 'settings', 'finance'].map(t => (
-                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-2 text-xs font-black uppercase rounded ${adminTab === t ? 'bg-red-600 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>{t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : t === 'finance' ? 'Financeiro' : 'Configurações'}</button>
+              {['results', 'members', 'settings', 'audit', 'finance'].map(t => (
+                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-2 text-xs font-black uppercase rounded ${adminTab === t ? 'bg-red-600 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>{t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : t === 'audit' ? 'Conferência' : t === 'finance' ? 'Financeiro' : 'Configurações'}</button>
               ))}
             </div>
 
@@ -800,6 +821,13 @@ export default function App() {
                     {/* ... (Gerenciar Corridas e Pilotos mantidos igual) ... */}
                     <div className="bg-white p-6 rounded-xl shadow-md"><h2 className="text-lg font-black uppercase text-gray-800 mb-4 flex items-center gap-2"><CalendarDays size={18}/> Gerenciar Corridas</h2><div className="space-y-4 max-h-[600px] overflow-y-auto">{config.races.sort((a,b) => new Date(a.date) - new Date(b.date)).map(r => (<div key={r.id} className="border p-4 rounded-lg bg-gray-50 space-y-3">{editingRace === r.id ? (<div className="space-y-3"><input className="w-full border p-2 rounded text-sm font-bold" value={r.name} onChange={e => { const nr = {...r, name: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /><div className="grid grid-cols-2 gap-2"><div><label className="text-[10px] font-bold text-gray-500 uppercase">Data</label><input type="date" className="w-full border p-2 rounded text-sm" value={r.date} onChange={e => { const nr = {...r, date: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /></div><div><label className="text-[10px] font-bold text-red-500 uppercase">Limite</label><input type="datetime-local" className="w-full border p-2 rounded text-sm border-red-200" value={r.deadline} onChange={e => { const nr = {...r, deadline: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /></div></div><div><label className="text-[10px] font-bold text-blue-500 uppercase flex items-center gap-1"><AlertTriangle size={10}/> Grid (1ª Etapa)</label><div className="grid grid-cols-5 gap-1 mt-1">{Array(10).fill(0).map((_, i) => (<select key={i} className="text-[10px] border rounded p-1" value={r.startingGrid?.[i] || ""} onChange={e => { const newGrid = [...(r.startingGrid || Array(10).fill(""))]; newGrid[i] = e.target.value; const nr = {...r, startingGrid: newGrid}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }}><option value="">{i+1}º...</option>{config.drivers.map(d => <option key={d} value={d}>{d}</option>)}</select>))}</div></div><div className="flex justify-end gap-2"><button onClick={() => setEditingRace(null)} className="text-gray-500 text-xs font-bold uppercase px-3">Cancelar</button><button onClick={() => updateRaceConfig(r)} className="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold uppercase shadow">Salvar</button></div></div>) : (<div className="flex justify-between items-center"><div><div className="font-bold text-sm text-gray-800">{r.name}</div><div className="text-xs text-gray-500">Limite: <span className="font-mono text-red-600">{new Date(r.deadline).toLocaleString()}</span></div>{r.startingGrid?.length > 0 && <div className="text-[10px] text-blue-600 mt-1">Grid cadastrado ✅</div>}</div><button onClick={() => setEditingRace(r.id)} className="text-blue-500 hover:text-blue-700 bg-white p-2 rounded border shadow-sm"><Edit size={16}/></button></div>)}</div>))}</div></div>
                 </div>
+            )}
+            {adminTab === 'audit' && (
+              <div className="bg-white p-6 rounded-xl shadow-md printable-area">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2><div className="flex gap-2 items-center"><select className="p-2 border rounded font-bold text-xs bg-gray-50" value={adminRaceId} onChange={e => setAdminRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select><button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir / PDF</button></div></div>
+                  <div className="hidden print:block text-center mb-6"><h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Conferência</h1><p className="text-gray-600">{config.races.find(r => r.id === adminRaceId)?.name}</p></div>
+                  <div className="overflow-x-auto"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead><tbody>{users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => { const bet = bets[`${adminRaceId}_${u.id}`]; let displayBet = bet; if (!displayBet) { const race = config.races.find(r => r.id === adminRaceId); if (new Date() > new Date(race.deadline)) { const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date)); const currentIndex = sortedRaces.findIndex(r => r.id === adminRaceId); if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; } } } return (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>{Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}<td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td></tr>) })}</tbody></table></div>
+              </div>
             )}
           </div>
         )}
