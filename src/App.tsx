@@ -29,22 +29,47 @@ import {
   writeBatch
 } from 'firebase/firestore';
 
-// --- CONFIGURAÇÃO FIREBASE ---
-const manualKeys = {
-  apiKey: "AIzaSyCzPK2ACo79F5WxSNib3kUQsXZ0lBvStfY",
-  authDomain: "bolaof12026-d6f9e.firebaseapp.com",
-  projectId: "bolaof12026-d6f9e",
-  storageBucket: "bolaof12026-d6f9e.firebasestorage.app",
-  messagingSenderId: "784210783074",
-  appId: "1:784210783074:web:4f00531d543daa733f1a3b"
+// --- CONFIGURAÇÃO FIREBASE SEGURA (.ENV) ---
+const getFirebaseConfig = () => {
+  // Tenta pegar das variáveis de ambiente (Vite/Vercel/Local)
+  const config = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
+  };
+  
+  // Se não encontrar no env, tenta ver se existe a global injetada (fallback de segurança para preview)
+  if (!config.apiKey && typeof __firebase_config !== 'undefined') {
+      return JSON.parse(__firebase_config);
+  }
+
+  return config;
 };
 
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualKeys;
+const firebaseConfig = getFirebaseConfig();
 
 // --- INICIALIZAÇÃO SEGURA ---
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+let app;
+let auth;
+let db;
+let initError = null;
+
+try {
+    // Só tenta inicializar se tivermos uma apiKey válida
+    if (firebaseConfig && firebaseConfig.apiKey) {
+        app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+    } else {
+        initError = "Variáveis de ambiente (.env) não encontradas. Configure o VITE_FIREBASE_API_KEY.";
+    }
+} catch (e) {
+    console.error("Erro na inicialização do Firebase:", e);
+    initError = "Falha ao conectar no Firebase. Verifique as chaves no .env";
+}
 
 // --- DADOS ESTÁTICOS ---
 const INITIAL_DRIVERS = [
@@ -123,16 +148,17 @@ const RegisterScreen = ({ onRegister, onBack }) => {
   };
   
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative" style={{
-        backgroundImage: "url('https://images.unsplash.com/photo-1595781572972-e0750436d936?q=80&w=2670&auto=format&fit=crop')",
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')", // Nova imagem de F1 em pista
         backgroundSize: 'cover',
-        backgroundPosition: 'center'
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
     }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
         <div className="flex flex-col items-center mb-6">
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 w-auto" style={{ filter: "brightness(0) saturate(100%) invert(18%) sepia(88%) saturate(5946%) hue-rotate(356deg) brightness(93%) contrast(114%)" }} />
-            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">CRIAR CONTA</h1>
+            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">F1 BOLÃO '26</h1>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="text" placeholder="Nome Completo" className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:outline-none" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
@@ -187,6 +213,18 @@ const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currenc
 
 // --- APP PRINCIPAL ---
 export default function App() {
+  if (initError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-6">
+        <div className="bg-red-900/20 border border-red-500 p-6 rounded-lg max-w-md text-center">
+          <AlertTriangle size={48} className="mx-auto mb-4 text-red-500" />
+          <h2 className="text-xl font-bold mb-2">Erro de Configuração</h2>
+          <p className="text-sm opacity-80">{initError}</p>
+        </div>
+      </div>
+    );
+  }
+
   const [userAuth, setUserAuth] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
@@ -206,6 +244,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [saveStatus, setSaveStatus] = useState('idle');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [dbError, setDbError] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => { 
@@ -235,13 +274,17 @@ export default function App() {
   useEffect(() => {
     if (!userAuth || !db) return;
     try {
-      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-      const unsubBets = onSnapshot(collection(db, 'bets'), (snap) => { const b = {}; snap.docs.forEach(d => b[d.id] = d.data()); setBets(b); });
-      const unsubResults = onSnapshot(collection(db, 'results'), (snap) => { const r = {}; snap.docs.forEach(d => r[d.id] = d.data()); setResults(r); });
+      const errorHandler = (error) => {
+        if (error.code === 'permission-denied') setDbError(true);
+      };
+
+      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => { setDbError(false); setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))); }, errorHandler);
+      const unsubBets = onSnapshot(collection(db, 'bets'), (snap) => { const b = {}; snap.docs.forEach(d => b[d.id] = d.data()); setBets(b); }, errorHandler);
+      const unsubResults = onSnapshot(collection(db, 'results'), (snap) => { const r = {}; snap.docs.forEach(d => r[d.id] = d.data()); setResults(r); }, errorHandler);
       const unsubConfig = onSnapshot(doc(db, 'config', 'main'), (snap) => {
         if (snap.exists()) setConfig(snap.data());
         else setDoc(doc(db, 'config', 'main'), { ...config, races: INITIAL_RACES }).catch(e => console.log("Init config error"));
-      });
+      }, errorHandler);
       return () => { unsubUsers(); unsubBets(); unsubResults(); unsubConfig(); };
     } catch (e) { console.error("Erro dados:", e); }
   }, [userAuth]);
@@ -264,15 +307,23 @@ export default function App() {
   const financialData = useMemo(() => {
     const payingUsers = users.filter(u => u.paymentConfirmed && !u.isAdmin);
     const count = payingUsers.length;
+    
+    // Receita Total (considerando descontos)
     const totalCollected = payingUsers.reduce((acc, u) => acc + (300 - (u.discount || 0)), 0);
+    
+    // Despesas/Potes Fixos
     const finalPrizePool = count * 240; 
     const lastRaceReserve = 300; 
+    
+    // Sobra para prêmios por etapa
     const remainingForStages = totalCollected - finalPrizePool - lastRaceReserve;
+    // AJUSTE: Math.floor para arredondar para baixo
     const prizePerStage = count > 0 ? Math.floor(remainingForStages / 23) : 0; 
+
     return { count, totalCollected, finalPrizePool, lastRaceReserve, prizePerStage };
   }, [users]);
 
-  // ALGORITMO DE DESEMPATE (COM CORREÇÃO PARA APOSTAS AUTOMÁTICAS)
+  // ALGORITMO DE DESEMPATE DA ETAPA
   const calculateStageWinner = (currentRaceId, currentResults, allBets, allUsers) => {
     const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
     const currentIndex = sortedRaces.findIndex(r => r.id === currentRaceId);
@@ -515,11 +566,14 @@ export default function App() {
 
   if (authError) return <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6"><div className="bg-white text-red-900 p-8 rounded-xl shadow-2xl max-w-md text-center"><AlertTriangle size={48} className="mx-auto mb-4" /><h2 className="text-2xl font-bold mb-2">Erro de Configuração</h2><p className="font-medium whitespace-pre-line">{authError}</p></div></div>;
 
+  if (dbError) return <div className="min-h-screen bg-orange-900 text-white flex items-center justify-center p-6"><div className="bg-white text-orange-900 p-8 rounded-xl shadow-2xl max-w-md text-center"><AlertTriangle size={48} className="mx-auto mb-4 text-orange-600" /><h2 className="text-2xl font-bold mb-4">Bloqueio de Segurança</h2><p className="mb-4">O banco de dados está bloqueado. Verifique as regras no Firebase.</p><button onClick={() => window.location.reload()} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">Tentar novamente</button></div></div>;
+
   if (activeTab === 'login') return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative" style={{
-        backgroundImage: "url('https://images.unsplash.com/photo-1595781572972-e0750436d936?q=80&w=2670&auto=format&fit=crop')",
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')",
         backgroundSize: 'cover',
-        backgroundPosition: 'center'
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
     }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
@@ -769,6 +823,8 @@ export default function App() {
                     <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500"><h2 className="text-lg font-black uppercase text-yellow-700 mb-4 flex items-center gap-2"><Trophy size={18}/> Finalizar Temporada</h2><div className="flex gap-2"><select className="flex-1 border p-2 rounded text-sm font-bold" value={config.officialChampion || ""} onChange={e => setConfig({...config, officialChampion: e.target.value})}><option value="">Selecione...</option>{config.drivers.map(d => <option key={d} value={d}>{d}</option>)}</select><button onClick={async () => { if(window.confirm("Confirmar?")) { await updateDoc(doc(db, 'config', 'main'), { officialChampion: config.officialChampion }); await processRecalculation(results); alert("Feito!"); } }} className="bg-yellow-500 text-white px-4 py-2 rounded font-black uppercase hover:bg-yellow-600 shadow-md">Confirmar</button></div></div>
                     {/* ... (Gerenciar Corridas e Pilotos mantidos igual) ... */}
                     <div className="bg-white p-6 rounded-xl shadow-md"><h2 className="text-lg font-black uppercase text-gray-800 mb-4 flex items-center gap-2"><CalendarDays size={18}/> Gerenciar Corridas</h2><div className="space-y-4 max-h-[600px] overflow-y-auto">{config.races.sort((a,b) => new Date(a.date) - new Date(b.date)).map(r => (<div key={r.id} className="border p-4 rounded-lg bg-gray-50 space-y-3">{editingRace === r.id ? (<div className="space-y-3"><input className="w-full border p-2 rounded text-sm font-bold" value={r.name} onChange={e => { const nr = {...r, name: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /><div className="grid grid-cols-2 gap-2"><div><label className="text-[10px] font-bold text-gray-500 uppercase">Data</label><input type="date" className="w-full border p-2 rounded text-sm" value={r.date} onChange={e => { const nr = {...r, date: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /></div><div><label className="text-[10px] font-bold text-red-500 uppercase">Limite</label><input type="datetime-local" className="w-full border p-2 rounded text-sm border-red-200" value={r.deadline} onChange={e => { const nr = {...r, deadline: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /></div></div><div><label className="text-[10px] font-bold text-blue-500 uppercase flex items-center gap-1"><AlertTriangle size={10}/> Grid (1ª Etapa)</label><div className="grid grid-cols-5 gap-1 mt-1">{Array(10).fill(0).map((_, i) => (<select key={i} className="text-[10px] border rounded p-1" value={r.startingGrid?.[i] || ""} onChange={e => { const newGrid = [...(r.startingGrid || Array(10).fill(""))]; newGrid[i] = e.target.value; const nr = {...r, startingGrid: newGrid}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }}><option value="">{i+1}º...</option>{config.drivers.map(d => <option key={d} value={d}>{d}</option>)}</select>))}</div></div><div className="flex justify-end gap-2"><button onClick={() => setEditingRace(null)} className="text-gray-500 text-xs font-bold uppercase px-3">Cancelar</button><button onClick={() => updateRaceConfig(r)} className="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold uppercase shadow">Salvar</button></div></div>) : (<div className="flex justify-between items-center"><div><div className="font-bold text-sm text-gray-800">{r.name}</div><div className="text-xs text-gray-500">Limite: <span className="font-mono text-red-600">{new Date(r.deadline).toLocaleString()}</span></div>{r.startingGrid?.length > 0 && <div className="text-[10px] text-blue-600 mt-1">Grid cadastrado ✅</div>}</div><button onClick={() => setEditingRace(r.id)} className="text-blue-500 hover:text-blue-700 bg-white p-2 rounded border shadow-sm"><Edit size={16}/></button></div>)}</div>))}</div></div>
+                    {/* --- NOVA SEÇÃO: GERENCIAR PILOTOS --- */}
+                    <div className="bg-white p-6 rounded-xl shadow-md border-t-2 border-gray-100 mt-6"><h2 className="text-lg font-black uppercase text-gray-800 mb-4 flex items-center gap-2"><UserCog size={18}/> Gerenciar Pilotos</h2><div className="flex gap-2 mb-4"><input type="text" placeholder="Nome do Novo Piloto" className="flex-1 border p-2 rounded text-sm" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} /><button onClick={async () => { if(newDriverName){ await updateDoc(doc(db, 'config', 'main'), { drivers: [...config.drivers, newDriverName].sort() }); setNewDriverName(""); } }} className="bg-green-600 text-white p-2 rounded hover:bg-green-700"><PlusCircle size={20}/></button></div><div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto">{config.drivers.map(d => (<div key={d} className="flex items-center justify-between bg-gray-50 p-2 rounded text-xs font-bold border hover:bg-gray-100">{d}<button onClick={async () => { if(window.confirm(`Tem certeza que deseja remover ${d}?`)) await updateDoc(doc(db, 'config', 'main'), { drivers: config.drivers.filter(x => x !== d) }); }} className="text-gray-400 hover:text-red-600"><X size={14}/></button></div>))}</div></div>
                 </div>
             )}
             {adminTab === 'audit' && (
