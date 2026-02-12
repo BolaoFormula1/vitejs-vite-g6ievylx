@@ -153,12 +153,17 @@ const RegisterScreen = ({ onRegister, onBack }) => {
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1595781572972-e0750436d936?q=80&w=2670&auto=format&fit=crop')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
     }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
         <div className="flex flex-col items-center mb-6">
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 w-auto" style={{ filter: "brightness(0) saturate(100%) invert(18%) sepia(88%) saturate(5946%) hue-rotate(356deg) brightness(93%) contrast(114%)" }} />
             <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">F1 BOLÃO '26</h1>
+            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">CRIAR CONTA</h1>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="text" placeholder="Nome Completo" className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:outline-none" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
@@ -321,6 +326,7 @@ export default function App() {
   }, [users]);
 
   // ALGORITMO DE DESEMPATE DA ETAPA
+  // ALGORITMO DE DESEMPATE (COM CORREÇÃO PARA APOSTAS AUTOMÁTICAS)
   const calculateStageWinner = (currentRaceId, currentResults, allBets, allUsers) => {
     const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
     const currentIndex = sortedRaces.findIndex(r => r.id === currentRaceId);
@@ -571,6 +577,12 @@ export default function App() {
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
+
+  if (activeTab === 'login') return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1595781572972-e0750436d936?q=80&w=2670&auto=format&fit=crop')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
     }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
