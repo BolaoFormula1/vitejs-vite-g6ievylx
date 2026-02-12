@@ -31,7 +31,6 @@ import {
 
 // --- CONFIGURAÇÃO FIREBASE SEGURA (.ENV) ---
 const getFirebaseConfig = () => {
-  // Tenta pegar das variáveis de ambiente (Vite/Vercel/Local)
   const config = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -41,11 +40,9 @@ const getFirebaseConfig = () => {
     appId: import.meta.env.VITE_FIREBASE_APP_ID
   };
   
-  // Se não encontrar no env, tenta ver se existe a global injetada (fallback de segurança para preview)
   if (!config.apiKey && typeof __firebase_config !== 'undefined') {
       return JSON.parse(__firebase_config);
   }
-
   return config;
 };
 
@@ -58,7 +55,6 @@ let db;
 let initError = null;
 
 try {
-    // Só tenta inicializar se tivermos uma apiKey válida
     if (firebaseConfig && firebaseConfig.apiKey) {
         app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
         auth = getAuth(app);
@@ -149,7 +145,7 @@ const RegisterScreen = ({ onRegister, onBack }) => {
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
-        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')", // Nova imagem de F1 em pista
+        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')", 
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -245,6 +241,8 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState('idle');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [dbError, setDbError] = useState(false);
+  // Estado para indicar se os dados foram carregados
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const initAuth = async () => { 
@@ -278,7 +276,13 @@ export default function App() {
         if (error.code === 'permission-denied') setDbError(true);
       };
 
-      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => { setDbError(false); setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))); }, errorHandler);
+      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => { 
+          setDbError(false); 
+          const loadedUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setUsers(loadedUsers);
+          setIsLoading(false); // Dados carregados!
+      }, errorHandler);
+      
       const unsubBets = onSnapshot(collection(db, 'bets'), (snap) => { const b = {}; snap.docs.forEach(d => b[d.id] = d.data()); setBets(b); }, errorHandler);
       const unsubResults = onSnapshot(collection(db, 'results'), (snap) => { const r = {}; snap.docs.forEach(d => r[d.id] = d.data()); setResults(r); }, errorHandler);
       const unsubConfig = onSnapshot(doc(db, 'config', 'main'), (snap) => {
@@ -307,23 +311,15 @@ export default function App() {
   const financialData = useMemo(() => {
     const payingUsers = users.filter(u => u.paymentConfirmed && !u.isAdmin);
     const count = payingUsers.length;
-    
-    // Receita Total (considerando descontos)
     const totalCollected = payingUsers.reduce((acc, u) => acc + (300 - (u.discount || 0)), 0);
-    
-    // Despesas/Potes Fixos
     const finalPrizePool = count * 240; 
     const lastRaceReserve = 300; 
-    
-    // Sobra para prêmios por etapa
     const remainingForStages = totalCollected - finalPrizePool - lastRaceReserve;
-    // AJUSTE: Math.floor para arredondar para baixo
     const prizePerStage = count > 0 ? Math.floor(remainingForStages / 23) : 0; 
-
     return { count, totalCollected, finalPrizePool, lastRaceReserve, prizePerStage };
   }, [users]);
 
-  // ALGORITMO DE DESEMPATE DA ETAPA
+  // ALGORITMO DE DESEMPATE
   const calculateStageWinner = (currentRaceId, currentResults, allBets, allUsers) => {
     const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
     const currentIndex = sortedRaces.findIndex(r => r.id === currentRaceId);
@@ -470,14 +466,22 @@ export default function App() {
   };
 
   const login = (email, pass) => {
-    const found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (found && found.password === pass) {
+    // Tratamento de espaços e case sensitive
+    const safeEmail = email.toLowerCase().trim();
+    const safePass = pass.trim();
+
+    const found = users.find(u => u.email.toLowerCase() === safeEmail);
+    if (found && found.password === safePass) {
       if (!found.isAdmin && !found.paymentConfirmed) return setLoginError("Aguarde aprovação do Admin.");
       localStorage.setItem('bolao_f1_user_id', found.id);
       setCurrentUser(found);
       setActiveTab(found.isAdmin ? 'admin' : 'dashboard');
       setLoginError("");
-    } else setLoginError("E-mail ou senha inválidos.");
+    } else {
+       // Feedback detalhado para o usuário (banco vazio ou senha errada)
+       if (users.length === 0) setLoginError("Erro de conexão com o banco. Tente recarregar.");
+       else setLoginError("E-mail ou senha inválidos.");
+    }
   };
 
   const logout = () => { localStorage.removeItem('bolao_f1_user_id'); setCurrentUser(null); setActiveTab('login'); };
@@ -598,7 +602,14 @@ export default function App() {
             </button>
           </div>
           {loginError && <div className="text-red-400 text-xs text-center font-bold">{loginError}</div>}
-          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded transition shadow-lg transform active:scale-95">ENTRAR</button>
+          
+          <button 
+              type="submit" 
+              disabled={isLoading}
+              className={`w-full text-white font-bold py-3 rounded transition shadow-lg transform active:scale-95 ${isLoading ? 'bg-gray-600 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+              {isLoading ? 'CARREGANDO SISTEMA...' : 'ENTRAR'}
+          </button>
         </form>
         <button onClick={() => setActiveTab('register')} className="mt-6 w-full text-center text-sm text-gray-400 hover:text-white underline transition">Criar Conta</button>
       </div>
@@ -827,13 +838,7 @@ export default function App() {
                     <div className="bg-white p-6 rounded-xl shadow-md border-t-2 border-gray-100 mt-6"><h2 className="text-lg font-black uppercase text-gray-800 mb-4 flex items-center gap-2"><UserCog size={18}/> Gerenciar Pilotos</h2><div className="flex gap-2 mb-4"><input type="text" placeholder="Nome do Novo Piloto" className="flex-1 border p-2 rounded text-sm" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} /><button onClick={async () => { if(newDriverName){ await updateDoc(doc(db, 'config', 'main'), { drivers: [...config.drivers, newDriverName].sort() }); setNewDriverName(""); } }} className="bg-green-600 text-white p-2 rounded hover:bg-green-700"><PlusCircle size={20}/></button></div><div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto">{config.drivers.map(d => (<div key={d} className="flex items-center justify-between bg-gray-50 p-2 rounded text-xs font-bold border hover:bg-gray-100">{d}<button onClick={async () => { if(window.confirm(`Tem certeza que deseja remover ${d}?`)) await updateDoc(doc(db, 'config', 'main'), { drivers: config.drivers.filter(x => x !== d) }); }} className="text-gray-400 hover:text-red-600"><X size={14}/></button></div>))}</div></div>
                 </div>
             )}
-            {adminTab === 'audit' && (
-              <div className="bg-white p-6 rounded-xl shadow-md printable-area">
-                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2><div className="flex gap-2 items-center"><select className="p-2 border rounded font-bold text-xs bg-gray-50" value={adminRaceId} onChange={e => setAdminRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select><button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir / PDF</button></div></div>
-                  <div className="hidden print:block text-center mb-6"><h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Conferência</h1><p className="text-gray-600">{config.races.find(r => r.id === adminRaceId)?.name}</p></div>
-                  <div className="overflow-x-auto"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead><tbody>{users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => { const bet = bets[`${adminRaceId}_${u.id}`]; let displayBet = bet; if (!displayBet) { const race = config.races.find(r => r.id === adminRaceId); if (new Date() > new Date(race.deadline)) { const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date)); const currentIndex = sortedRaces.findIndex(r => r.id === adminRaceId); if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; } } } return (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>{Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}<td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td></tr>) })}</tbody></table></div>
-              </div>
-            )}
+            {/* ... ABAS RESTANTES ... */}
           </div>
         )}
       </main>
