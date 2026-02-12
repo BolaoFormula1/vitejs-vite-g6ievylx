@@ -1,11 +1,11 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Trophy, User, CheckCircle, Save, Calculator, Settings, AlertCircle, 
   Flag, Lock, LogIn, UserPlus, Trash2, Calendar, PlusCircle, XCircle, 
   Clock, Mail, Key, UserCog, Send, Printer, Award, Shield, DollarSign,
   Link as LinkIcon, Copy, Banknote, UserCheck, UserX, ChevronRight, History,
-  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, RefreshCw
+  Database, Flame, X, Edit, CalendarDays, Users, AlertTriangle, LogOut, CheckCircle2, RefreshCw, FileText, Eye, EyeOff
 } from 'lucide-react';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -29,22 +29,31 @@ import {
   writeBatch
 } from 'firebase/firestore';
 
-// --- CONFIGURAÇÃO FIREBASE ---
-const manualKeys = {
-  apiKey: "AIzaSyCzPK2ACo79F5WxSNib3kUQsXZ0lBvStfY",
-  authDomain: "bolaof12026-d6f9e.firebaseapp.com",
-  projectId: "bolaof12026-d6f9e",
-  storageBucket: "bolaof12026-d6f9e.firebasestorage.app",
-  messagingSenderId: "784210783074",
-  appId: "1:784210783074:web:4f00531d543daa733f1a3b"
+// --- CONFIGURAÇÃO FIREBASE VIA .ENV ---
+// O código agora lê do arquivo .env que você configurou
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualKeys;
-
 // --- INICIALIZAÇÃO SEGURA ---
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+let app;
+let auth;
+let db;
+let initError = null;
+
+try {
+    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+} catch (e) {
+    console.error("Erro na inicialização do Firebase:", e);
+    initError = "Não foi possível conectar ao Firebase. Verifique o arquivo .env.";
+}
 
 // --- DADOS ESTÁTICOS ---
 const INITIAL_DRIVERS = [
@@ -89,7 +98,7 @@ const POINTS_SYSTEM_BRAZIL = [50, 36, 30, 24, 20, 16, 12, 8, 4, 2];
 
 // Componentes UI
 const PrintStyles = () => (
-  <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; color: black !important; background: white !important; } .no-print { display: none !important; } }`}</style>
+  <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; color: black !important; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; background: white !important; } .no-print { display: none !important; } }`}</style>
 );
 
 const ChampionModal = ({ drivers, onSubmit, onClose, currentGuess }) => {
@@ -112,32 +121,94 @@ const ChampionModal = ({ drivers, onSubmit, onClose, currentGuess }) => {
 
 const RegisterScreen = ({ onRegister, onBack }) => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', confirm: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirm) return alert("Senhas não conferem.");
     if (formData.password.length < 3) return alert("Senha muito curta.");
     onRegister(formData);
   };
+  
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
-      <div className="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700">
-        <h1 className="text-3xl font-black italic text-red-600 mb-6 text-center">CRIAR CONTA</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')", // Imagem F1
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+    }}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+      <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
+        <div className="flex flex-col items-center mb-6">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 w-auto" style={{ filter: "brightness(0) saturate(100%) invert(18%) sepia(88%) saturate(5946%) hue-rotate(356deg) brightness(93%) contrast(114%)" }} />
+            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">CRIAR CONTA</h1>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="text" placeholder="Nome Completo" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
-          <input type="email" placeholder="E-mail" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}/>
-          <input type="password" placeholder="Senha" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}/>
-          <input type="password" placeholder="Confirmar Senha" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" required value={formData.confirm} onChange={e => setFormData({...formData, confirm: e.target.value})}/>
-          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 font-bold py-3 rounded transition">CADASTRAR</button>
+          <input type="text" placeholder="Nome Completo" className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:outline-none" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
+          <input type="email" placeholder="E-mail" className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:outline-none" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}/>
+          
+          <div className="relative">
+            <input 
+              type={showPassword ? "text" : "password"} 
+              placeholder="Senha" 
+              className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 pr-10 focus:ring-2 focus:ring-red-600 focus:outline-none" 
+              required 
+              value={formData.password} 
+              onChange={e => setFormData({...formData, password: e.target.value})}
+            />
+            <button 
+              type="button" 
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+
+          <div className="relative">
+            <input 
+              type={showConfirm ? "text" : "password"} 
+              placeholder="Confirmar Senha" 
+              className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 pr-10 focus:ring-2 focus:ring-red-600 focus:outline-none" 
+              required 
+              value={formData.confirm} 
+              onChange={e => setFormData({...formData, confirm: e.target.value})}
+            />
+            <button 
+              type="button" 
+              onClick={() => setShowConfirm(!showConfirm)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
+              {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+
+          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded transition shadow-lg transform active:scale-95">CADASTRAR</button>
         </form>
-        <button onClick={onBack} className="w-full text-center mt-4 text-sm text-gray-500 hover:text-white underline">Voltar para Login</button>
+        <button onClick={onBack} className="w-full text-center mt-6 text-sm text-gray-400 hover:text-white underline transition">Voltar para Login</button>
       </div>
     </div>
   );
 };
 
+// --- FUNÇÃO AUXILIAR FINANCEIRA ---
+const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
 // --- APP PRINCIPAL ---
 export default function App() {
-  
+  if (initError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-6">
+        <div className="bg-red-900/20 border border-red-500 p-6 rounded-lg max-w-md text-center">
+          <AlertTriangle size={48} className="mx-auto mb-4 text-red-500" />
+          <h2 className="text-xl font-bold mb-2">Erro de Inicialização</h2>
+          <p className="text-sm opacity-80">{initError}</p>
+        </div>
+      </div>
+    );
+  }
+
   const [userAuth, setUserAuth] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
@@ -147,6 +218,7 @@ export default function App() {
   const [adminTab, setAdminTab] = useState('results');
   const [selectedRaceId, setSelectedRaceId] = useState(1);
   const [adminRaceId, setAdminRaceId] = useState(1);
+  const [conferenceRaceId, setConferenceRaceId] = useState(1);
   const [showChampionModal, setShowChampionModal] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [config, setConfig] = useState({ drivers: INITIAL_DRIVERS, races: INITIAL_RACES, officialChampion: null, financial: { entryFee: 300, mainPrizeDeduction: 240, perUserPoints: 10 } });
@@ -154,7 +226,9 @@ export default function App() {
   const [newDriverName, setNewDriverName] = useState("");
   const [editingRace, setEditingRace] = useState(null);
   const [authError, setAuthError] = useState("");
-  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'success' | 'error'
+  const [saveStatus, setSaveStatus] = useState('idle');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [dbError, setDbError] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => { 
@@ -184,13 +258,17 @@ export default function App() {
   useEffect(() => {
     if (!userAuth || !db) return;
     try {
-      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-      const unsubBets = onSnapshot(collection(db, 'bets'), (snap) => { const b = {}; snap.docs.forEach(d => b[d.id] = d.data()); setBets(b); });
-      const unsubResults = onSnapshot(collection(db, 'results'), (snap) => { const r = {}; snap.docs.forEach(d => r[d.id] = d.data()); setResults(r); });
+      const errorHandler = (error) => {
+        if (error.code === 'permission-denied') setDbError(true);
+      };
+
+      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => { setDbError(false); setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))); }, errorHandler);
+      const unsubBets = onSnapshot(collection(db, 'bets'), (snap) => { const b = {}; snap.docs.forEach(d => b[d.id] = d.data()); setBets(b); }, errorHandler);
+      const unsubResults = onSnapshot(collection(db, 'results'), (snap) => { const r = {}; snap.docs.forEach(d => r[d.id] = d.data()); setResults(r); }, errorHandler);
       const unsubConfig = onSnapshot(doc(db, 'config', 'main'), (snap) => {
         if (snap.exists()) setConfig(snap.data());
         else setDoc(doc(db, 'config', 'main'), { ...config, races: INITIAL_RACES }).catch(e => console.log("Init config error"));
-      });
+      }, errorHandler);
       return () => { unsubUsers(); unsubBets(); unsubResults(); unsubConfig(); };
     } catch (e) { console.error("Erro dados:", e); }
   }, [userAuth]);
@@ -209,11 +287,116 @@ export default function App() {
     }
   }, [adminRaceId, activeTab, adminTab, results]);
 
-  const processRecalculation = async (latestResults) => {
+  // --- CÁLCULOS FINANCEIROS ---
+  const financialData = useMemo(() => {
+    const payingUsers = users.filter(u => u.paymentConfirmed && !u.isAdmin);
+    const count = payingUsers.length;
+    const totalCollected = payingUsers.reduce((acc, u) => acc + (300 - (u.discount || 0)), 0);
+    const finalPrizePool = count * 240; 
+    const lastRaceReserve = 300; 
+    const remainingForStages = totalCollected - finalPrizePool - lastRaceReserve;
+    const prizePerStage = count > 0 ? Math.floor(remainingForStages / 23) : 0; 
+    return { count, totalCollected, finalPrizePool, lastRaceReserve, prizePerStage };
+  }, [users]);
+
+  // ALGORITMO DE DESEMPATE DA ETAPA
+  const calculateStageWinner = (currentRaceId, currentResults, allBets, allUsers) => {
+    const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const currentIndex = sortedRaces.findIndex(r => r.id === currentRaceId);
+    const prevRace = currentIndex > 0 ? sortedRaces[currentIndex - 1] : null;
+    const currentRace = config.races.find(r => r.id === currentRaceId);
+
+    const raceBets = allUsers
+        .filter(u => !u.isAdmin)
+        .map(u => {
+            let effectiveBet = null;
+            let streak = 0;
+            let lastBet = null;
+
+            for (const r of sortedRaces) {
+                const realBet = allBets[`${r.id}_${u.id}`];
+                let currentRaceBet = realBet;
+
+                if (!realBet) {
+                    streak++;
+                    if (streak === 1) {
+                        if (lastBet) currentRaceBet = lastBet;
+                        else if (r.startingGrid && r.startingGrid.length > 0) {
+                            currentRaceBet = { top10: r.startingGrid, driverOfDay: r.startingGrid[0] };
+                        } else {
+                            currentRaceBet = null;
+                        }
+                    } else {
+                        currentRaceBet = null;
+                    }
+                } else {
+                    streak = 0;
+                    lastBet = realBet;
+                }
+                
+                if (r.id === currentRaceId) {
+                    effectiveBet = currentRaceBet;
+                    break;
+                }
+            }
+
+            if (!effectiveBet) return { userId: u.id, name: u.name, points: 0, matches: [], bet: null };
+
+            let points = 0;
+            const matches = []; 
+            if (currentResults) {
+                const table = sortedRaces.find(r=>r.id===currentRaceId)?.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
+                const consolation = sortedRaces.find(r=>r.id===currentRaceId)?.isBrazil ? 2 : 1;
+                
+                effectiveBet.top10.forEach((d, i) => {
+                    const pos = currentResults.top10.indexOf(d);
+                    if (pos === i) { points += table[i]; matches.push(i); } 
+                    else if (pos !== -1) points += consolation;
+                });
+                if (effectiveBet.driverOfDay === currentResults.driverOfDay) points += 5;
+            }
+            return { userId: u.id, name: u.name, points, matches, bet: effectiveBet };
+        });
+
+    if (raceBets.length === 0) return [];
+
+    const maxPoints = Math.max(...raceBets.map(r => r.points));
+    if (maxPoints === 0) return []; 
+    let candidates = raceBets.filter(r => r.points === maxPoints);
+
+    if (candidates.length === 1) return candidates;
+
+    for (let i = 0; i < 10; i++) {
+        const withPos = candidates.filter(c => c.matches.includes(i));
+        if (withPos.length > 0 && withPos.length < candidates.length) {
+             candidates = withPos; 
+        }
+        if (candidates.length === 1) return candidates;
+    }
+
+    const withDoD = candidates.filter(c => c.bet?.driverOfDay === currentResults.driverOfDay);
+    if (withDoD.length > 0 && withDoD.length < candidates.length) {
+        return withDoD;
+    }
+
+    return candidates;
+  };
+
+  const processRecalculation = async (latestResults, specificRaceId) => {
     if (!users.length) return;
     const batch = writeBatch(db);
     const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
     const finishedRaces = sortedRaces.filter(r => latestResults[r.id]);
+
+    const winnersMap = {}; 
+    finishedRaces.forEach(r => {
+        if (r.id !== 24) { 
+            const winners = calculateStageWinner(r.id, latestResults[r.id], bets, users);
+            winnersMap[r.id] = winners.map(w => w.userId);
+            const resRef = doc(db, 'results', r.id.toString());
+            batch.update(resRef, { financialWinners: winnersMap[r.id] });
+        }
+    });
 
     users.forEach(u => {
       if (u.isAdmin) return;
@@ -277,7 +460,6 @@ export default function App() {
 
   const register = async (data) => {
     const id = data.email.replace(/\./g, '_');
-    
     const userDocRef = doc(db, 'users', id);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) return alert("Já existe uma conta com este e-mail.");
@@ -286,14 +468,7 @@ export default function App() {
     const usersSnapshot = await getDocs(query(usersCollection, limit(1)));
     const isFirstUser = usersSnapshot.empty;
     
-    const newUser = { 
-      ...data, 
-      id, 
-      isAdmin: isFirstUser, 
-      points: 0, 
-      championGuess: "", 
-      paymentConfirmed: isFirstUser 
-    };
+    const newUser = { ...data, id, isAdmin: isFirstUser, points: 0, championGuess: "", paymentConfirmed: isFirstUser, discount: 0 };
 
     try { 
       await setDoc(doc(db, 'users', id), newUser); 
@@ -314,43 +489,25 @@ export default function App() {
   const autoSaveBet = async (top10, driverOfDay) => {
     if (!currentUser) return;
     const race = config.races.find(r => r.id === selectedRaceId);
-    
-    if (new Date() > new Date(race.deadline)) {
-      setSaveStatus('error');
-      return; 
-    }
-
+    if (new Date() > new Date(race.deadline)) { setSaveStatus('error'); return; }
     setSaveStatus('saving');
-    try { 
-        await setDoc(doc(db, 'bets', `${selectedRaceId}_${currentUser.id}`), { 
-            top10, 
-            driverOfDay, 
-            timestamp: new Date().toISOString() 
-        }); 
-        setSaveStatus('success');
-        setTimeout(() => setSaveStatus('idle'), 2000); 
-    } catch (e) { 
-        console.error("Erro autosave:", e);
-        setSaveStatus('error');
-    }
+    try { await setDoc(doc(db, 'bets', `${selectedRaceId}_${currentUser.id}`), { top10, driverOfDay, timestamp: new Date().toISOString() }); setSaveStatus('success'); setTimeout(() => setSaveStatus('idle'), 2000); } catch (e) { console.error("Erro autosave:", e); setSaveStatus('error'); }
   };
 
-  // --- FUNÇÃO DE APROVAÇÃO (CORRIGIDA) ---
   const togglePayment = async (id, currentStatus) => {
-    try {
-      // Passamos o valor exato a ser gravado (inverso do atual)
-      await updateDoc(doc(db, 'users', id), { paymentConfirmed: !currentStatus });
-    } catch (e) {
-      alert("Erro ao atualizar pagamento: " + e.message);
-    }
+    try { await updateDoc(doc(db, 'users', id), { paymentConfirmed: !currentStatus }); } 
+    catch (e) { alert("Erro ao atualizar pagamento: " + e.message); }
   };
 
   const deleteUserDoc = async (id) => {
     if (window.confirm("Remover este membro permanentemente?")) {
-        try {
-            await deleteDoc(doc(db, 'users', id));
-        } catch (e) { alert("Erro ao deletar: " + e.message); }
+        try { await deleteDoc(doc(db, 'users', id)); } catch (e) { alert("Erro ao deletar: " + e.message); }
     }
+  };
+  
+  const updateDiscount = async (id, val) => {
+    try { await updateDoc(doc(db, 'users', id), { discount: Number(val) }); }
+    catch (e) { console.error(e); }
   };
 
   const saveRaceResult = async () => {
@@ -359,8 +516,9 @@ export default function App() {
       await setDoc(doc(db, 'results', adminRaceId.toString()), adminResult);
       const newRaces = config.races.map(r => r.id === adminRaceId ? { ...r, status: 'finished' } : r);
       await updateDoc(doc(db, 'config', 'main'), { races: newRaces });
-      await processRecalculation({ ...results, [adminRaceId]: adminResult });
-      alert("Resultado salvo e pontos recalculados!");
+      // Passa ID para forçar calculo de vencedor da etapa
+      await processRecalculation({ ...results, [adminRaceId]: adminResult }, adminRaceId);
+      alert("Resultado salvo, pontos e prêmios calculados!");
     } catch (e) { alert("Erro: " + e.message); }
   };
 
@@ -380,29 +538,45 @@ export default function App() {
     }
   };
 
-  if (authError) {
-    return (
-      <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6">
-        <div className="bg-white text-red-900 p-8 rounded-xl shadow-2xl max-w-md text-center">
-          <AlertTriangle size={48} className="mx-auto mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Erro de Configuração</h2>
-          <p className="font-medium whitespace-pre-line">{authError}</p>
-        </div>
-      </div>
-    );
-  }
+  const handlePrintAudit = () => { window.print(); };
+
+  if (authError) return <div className="min-h-screen bg-red-900 text-white flex items-center justify-center p-6"><div className="bg-white text-red-900 p-8 rounded-xl shadow-2xl max-w-md text-center"><AlertTriangle size={48} className="mx-auto mb-4" /><h2 className="text-2xl font-bold mb-2">Erro de Configuração</h2><p className="font-medium whitespace-pre-line">{authError}</p></div></div>;
+
+  if (dbError) return <div className="min-h-screen bg-orange-900 text-white flex items-center justify-center p-6"><div className="bg-white text-orange-900 p-8 rounded-xl shadow-2xl max-w-md text-center"><AlertTriangle size={48} className="mx-auto mb-4 text-orange-600" /><h2 className="text-2xl font-bold mb-4">Bloqueio de Segurança</h2><p className="mb-4">O banco de dados está bloqueado. Verifique as regras no Firebase.</p><button onClick={() => window.location.reload()} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">Tentar novamente</button></div></div>;
 
   if (activeTab === 'login') return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
-      <div className="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700">
-        <h1 className="text-4xl font-black italic text-red-600 mb-2 text-center">F1 BOLÃO '26</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+    }}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+      <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
+        <div className="flex flex-col items-center mb-6">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 w-auto" style={{ filter: "brightness(0) saturate(100%) invert(18%) sepia(88%) saturate(5946%) hue-rotate(356deg) brightness(93%) contrast(114%)" }} />
+            <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">F1 BOLÃO '26</h1>
+        </div>
         <form onSubmit={(e) => { e.preventDefault(); login(e.target[0].value, e.target[1].value); }} className="space-y-5">
-          <input type="email" placeholder="E-mail" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" />
-          <input type="password" placeholder="Senha" className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" />
+          <input type="email" placeholder="E-mail" className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:outline-none" />
+          <div className="relative">
+            <input 
+              type={showLoginPassword ? "text" : "password"} 
+              placeholder="Senha" 
+              className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white placeholder-gray-400 pr-10 focus:ring-2 focus:ring-red-600 focus:outline-none" 
+            />
+            <button 
+              type="button" 
+              onClick={() => setShowLoginPassword(!showLoginPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            >
+              {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
           {loginError && <div className="text-red-400 text-xs text-center font-bold">{loginError}</div>}
-          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 font-bold py-3 rounded transition">ENTRAR</button>
+          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded transition shadow-lg transform active:scale-95">ENTRAR</button>
         </form>
-        <button onClick={() => setActiveTab('register')} className="mt-6 w-full text-center text-sm hover:underline">Criar Conta</button>
+        <button onClick={() => setActiveTab('register')} className="mt-6 w-full text-center text-sm text-gray-400 hover:text-white underline transition">Criar Conta</button>
       </div>
     </div>
   );
@@ -411,7 +585,38 @@ export default function App() {
 
   const race = config.races.find(r => r.id === selectedRaceId);
   const isLocked = new Date() > new Date(race.deadline);
-  const currentBet = bets[`${selectedRaceId}_${currentUser?.id}`] || { top10: Array(10).fill(""), driverOfDay: "" };
+  
+  const getDisplayBet = () => {
+    const realBet = bets[`${selectedRaceId}_${currentUser?.id}`];
+    if (realBet) return { bet: realBet, isAuto: false, reason: null };
+    if (isLocked) {
+      const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const currentIndex = sortedRaces.findIndex(r => r.id === selectedRaceId);
+      if (currentIndex > 0) {
+        const prevRace = sortedRaces[currentIndex - 1];
+        const prevBet = bets[`${prevRace.id}_${currentUser?.id}`];
+        if (prevBet) return { bet: prevBet, isAuto: true, reason: `Repetida de ${prevRace.name}` };
+      }
+      if (race.startingGrid && race.startingGrid.length > 0) {
+         return { bet: { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }, isAuto: true, reason: "Automática via Grid" };
+      }
+    }
+    return { bet: { top10: Array(10).fill(""), driverOfDay: "" }, isAuto: false, reason: null };
+  };
+
+  const { bet: currentBet, isAuto: isAutoBet, reason: autoReason } = getDisplayBet();
+
+  // CALCULO PONTOS ETAPA (VISUAL)
+  let totalRacePoints = 0;
+  if(results[race.id]) {
+      const officialResult = results[race.id];
+      const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
+      const consolation = race.isBrazil ? 2 : 1;
+      currentBet.top10.forEach((d, i) => { if(d) { const pos = officialResult.top10.indexOf(d); if(pos === i) totalRacePoints += table[i]; else if(pos !== -1) totalRacePoints += consolation; } });
+      if(currentBet.driverOfDay && currentBet.driverOfDay === officialResult.driverOfDay) totalRacePoints += 5;
+  }
+  
+  const isStageWinner = results[race.id]?.financialWinners?.includes(currentUser.id);
 
   return (
     <div className="min-h-screen bg-gray-100 pb-20 font-sans">
@@ -419,22 +624,19 @@ export default function App() {
       {showChampionModal && <ChampionModal drivers={config.drivers} currentGuess={currentUser.championGuess} onClose={() => setShowChampionModal(false)} onSubmit={async (d) => { try { await updateDoc(doc(db, 'users', currentUser.id), { championGuess: d }); setCurrentUser({...currentUser, championGuess: d}); setShowChampionModal(false); } catch(e) { alert("Erro: " + e.message); }}} />}
 
       <header className="bg-red-600 text-white p-4 sticky top-0 z-50 shadow-lg">
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
+        <div className={`mx-auto flex justify-between items-center ${activeTab === 'conference' ? 'max-w-[98%]' : 'max-w-4xl'}`}>
           <h1 className="font-black italic text-xl tracking-tighter uppercase">F1 BOLÃO '26</h1>
           <button onClick={logout} className="bg-red-800 text-xs px-3 py-1 rounded font-bold uppercase hover:bg-red-900 transition flex items-center gap-2"><LogOut size={16}/> Sair</button>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-4 space-y-6">
+      <main className={`mx-auto p-4 space-y-6 ${activeTab === 'conference' ? 'max-w-[98%]' : 'max-w-4xl'}`}>
         {activeTab === 'dashboard' && (
           <>
             <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-3">
                 <div className="bg-yellow-100 p-3 rounded-full"><Trophy className="text-yellow-600" size={24} /></div>
-                <div>
-                  <h3 className="font-bold text-gray-800 uppercase italic text-sm">Palpite do Campeão</h3>
-                  <p className="text-xs text-gray-500">{currentUser.championGuess ? <span className="font-black text-gray-900">{currentUser.championGuess}</span> : "Quem vence a temporada?"}</p>
-                </div>
+                <div><h3 className="font-bold text-gray-800 uppercase italic text-sm">Palpite do Campeão</h3><p className="text-xs text-gray-500">{currentUser.championGuess ? <span className="font-black text-gray-900">{currentUser.championGuess}</span> : "Quem vence a temporada?"}</p></div>
               </div>
               <button onClick={() => setShowChampionModal(true)} className="text-xs font-bold uppercase py-2 px-4 rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 shadow-lg">{currentUser.championGuess ? "Alterar" : "Definir"}</button>
             </div>
@@ -444,56 +646,41 @@ export default function App() {
                 <div>
                   <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2 uppercase italic leading-none text-gray-900"><Flag className="text-red-600" size={24}/> {race?.name}</h2>
                   <p className="text-xs text-gray-400 mt-1 font-bold">{new Date(race?.date).toLocaleDateString()} {race?.isBrazil && '🇧🇷 DOBRADO'}</p>
-                  
-                  {/* INDICADOR DE STATUS */}
                   {isLocked ? (
-                    <p className="text-xs font-bold text-red-600 flex items-center gap-1 mt-1"><Lock size={12}/> Apostas Encerradas</p>
+                    <div className="mt-2"><p className="text-xs font-bold text-red-600 flex items-center gap-1"><Lock size={12}/> Apostas Encerradas</p>{isAutoBet && (<div className="mt-1 bg-yellow-100 text-yellow-800 p-3 rounded-lg border-l-4 border-yellow-500 flex items-center gap-2 shadow-sm"><RefreshCw size={20} className="shrink-0" /><div><p className="font-bold text-sm uppercase">Preenchimento Automático</p><p className="text-xs">{autoReason}</p></div></div>)}</div>
                   ) : (
-                    <div className="flex items-center gap-3 mt-1">
-                        <p className="text-xs font-bold text-green-600 flex items-center gap-1"><Clock size={12}/> Aberto até {new Date(race.deadline).toLocaleString()}</p>
-                        
-                        {saveStatus === 'saving' && <span className="text-xs font-bold text-blue-500 animate-pulse flex items-center gap-1"><Save size={12}/> Salvando...</span>}
-                        {saveStatus === 'success' && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle2 size={12}/> Salvo</span>}
-                        {saveStatus === 'error' && <span className="text-xs font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={12}/> Erro ao salvar</span>}
-                    </div>
+                    <div className="flex items-center gap-3 mt-1"><p className="text-xs font-bold text-green-600 flex items-center gap-1"><Clock size={12}/> Aberto até {new Date(race.deadline).toLocaleString()}</p>{saveStatus === 'saving' && <span className="text-xs font-bold text-blue-500 animate-pulse flex items-center gap-1"><Save size={12}/> Salvando...</span>}{saveStatus === 'success' && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle2 size={12}/> Salvo</span>}{saveStatus === 'error' && <span className="text-xs font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={12}/> Erro ao salvar</span>}</div>
                   )}
                 </div>
-                <select className="p-2 border rounded font-bold text-sm bg-gray-50 text-gray-900" value={selectedRaceId} onChange={e => setSelectedRaceId(Number(e.target.value))}>
-                  {config.races.map(r => <option key={r.id} value={r.id}>{r.name} {results[r.id] ? '🏁' : ''}</option>)}
-                </select>
+                <select className="p-2 border rounded font-bold text-sm bg-gray-50 text-gray-900" value={selectedRaceId} onChange={e => setSelectedRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name} {results[r.id] ? '🏁' : ''}</option>)}</select>
               </div>
 
               {results[race.id] ? (
-                <div className="bg-gray-50 p-8 rounded-lg text-center border-2 border-dashed">
-                  <Shield size={48} className="mx-auto text-gray-300 mb-4"/>
-                  <p className="font-black text-gray-400 uppercase mb-2">Etapa Finalizada</p>
-                  <p className="text-xs text-gray-500">Vencedor: {results[race.id].top10[0]}</p>
-                </div>
-              ) : (
-                <div className={`grid grid-cols-1 md:grid-cols-2 gap-10 ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10</h3>
-                    {Array(10).fill(0).map((_, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
-                        <select className="flex-1 p-2 border rounded-lg bg-white text-gray-900 text-sm font-medium" value={currentBet.top10[i]} onChange={(e) => {
-                          const nt = [...currentBet.top10]; nt[i] = e.target.value; autoSaveBet(nt, currentBet.driverOfDay);
-                        }}>
-                          <option value="">Piloto...</option>
-                          {config.drivers.filter(d => !currentBet.top10.includes(d) || currentBet.top10[i] === d).map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
+                  <div className="space-y-6">
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center mb-6"><h3 className="font-bold text-green-800 uppercase">Etapa Finalizada</h3><p className="text-xs text-green-600">Confira sua pontuação abaixo</p><p className="text-2xl font-black text-green-900 mt-2">{totalRacePoints} Pontos</p>
+                          {isStageWinner && (<div className="mt-4 bg-yellow-100 text-yellow-900 p-3 rounded-lg border border-yellow-300 font-bold flex flex-col items-center animate-bounce shadow-lg"><span className="flex items-center gap-2 uppercase text-sm"><Trophy size={18}/> Vencedor da Etapa!</span><span className="text-lg">Prêmio: {formatCurrency(financialData.prizePerStage)}</span></div>)}
                       </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-3"><h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10</h3>
+                            {Array(10).fill(0).map((_, i) => {
+                                const driver = currentBet.top10[i]; const officialResult = results[race.id]; let points = 0; let style = "bg-gray-100 text-gray-400";
+                                if (driver) { const officialPos = officialResult.top10.indexOf(driver); const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM; const consolation = race.isBrazil ? 2 : 1;
+                                    if (officialPos === i) { points = table[i]; style = "bg-green-100 text-green-700 border-green-300 font-bold"; } else if (officialPos !== -1) { points = consolation; style = "bg-yellow-50 text-yellow-700 border-yellow-200"; } }
+                                return (<div key={i} className="flex items-center gap-3"><span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span><div className="flex-1 flex items-center gap-2"><div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>{driver || "-"}</div><div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>+{points}</div></div></div>);
+                            })}
+                        </div>
+                        <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><div className="flex items-center gap-2"><div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div><div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-400"}`}>+{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}</div></div></div></div>
+                      </div>
+                  </div>
+              ) : (
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-10 ${isLocked ? 'opacity-75 pointer-events-none' : ''}`}>
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Seu Top 10 {isAutoBet && <span className="ml-2 text-yellow-600 font-normal normal-case">(Auto)</span>}</h3>
+                    {Array(10).fill(0).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3"><span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span><select className="flex-1 p-2 border rounded-lg bg-white text-gray-900 text-sm font-medium" value={currentBet.top10[i]} onChange={(e) => { const nt = [...currentBet.top10]; nt[i] = e.target.value; autoSaveBet(nt, currentBet.driverOfDay); }}><option value="">Piloto...</option>{config.drivers.filter(d => !currentBet.top10.includes(d) || currentBet.top10[i] === d).map(d => <option key={d} value={d}>{d}</option>)}</select></div>
                     ))}
                   </div>
-                  <div className="space-y-6">
-                    <div className="bg-gray-50 p-5 rounded-xl border">
-                      <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3>
-                      <select className="w-full p-3 border rounded-lg font-bold text-red-600 bg-white" value={currentBet.driverOfDay} onChange={(e) => autoSaveBet(currentBet.top10, e.target.value)}>
-                        <option value="">Selecione...</option>
-                        {config.drivers.map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </div>
-                  </div>
+                  <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><select className="w-full p-3 border rounded-lg font-bold text-red-600 bg-white" value={currentBet.driverOfDay} onChange={(e) => autoSaveBet(currentBet.top10, e.target.value)}><option value="">Selecione...</option>{config.drivers.map(d => <option key={d} value={d}>{d}</option>)}</select></div></div>
                 </div>
               )}
             </div>
@@ -501,211 +688,124 @@ export default function App() {
         )}
 
         {activeTab === 'ranking' && (
-          <div className="bg-white rounded-xl shadow-md overflow-hidden printable-area">
-            <div className="bg-red-600 p-5 text-white flex justify-between items-center">
-              <h2 className="text-xl font-black italic flex items-center gap-2 uppercase tracking-tighter"><Trophy size={20}/> Classificação</h2>
-              <button onClick={() => window.print()} className="p-2 hover:bg-red-700 rounded transition no-print"><Printer size={20}/></button>
+          <div className="space-y-6 printable-area">
+            <div className="bg-gradient-to-r from-green-600 to-emerald-700 text-white p-6 rounded-xl shadow-lg border border-gray-200"><h2 className="text-lg font-black uppercase mb-4 flex items-center gap-2 border-b border-green-500 pb-2"><Banknote/> Premiação Total (Estimada)</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"><div><p className="text-xs opacity-75 uppercase">1º Lugar (50%)</p><p className="font-black text-xl">{formatCurrency(financialData.finalPrizePool * 0.50)}</p></div><div><p className="text-xs opacity-75 uppercase">2º Lugar (30%)</p><p className="font-black text-xl">{formatCurrency(financialData.finalPrizePool * 0.30)}</p></div><div><p className="text-xs opacity-75 uppercase">3º Lugar (15%)</p><p className="font-black text-xl">{formatCurrency(financialData.finalPrizePool * 0.15)}</p></div><div><p className="text-xs opacity-75 uppercase">4º Lugar (5%)</p><p className="font-black text-xl">{formatCurrency(financialData.finalPrizePool * 0.05)}</p></div></div><div className="mt-4 pt-4 border-t border-green-500 flex justify-between text-xs font-bold"><span>Prêmio por Etapa: {formatCurrency(financialData.prizePerStage)}</span><span>Última Etapa (Vencedor): {formatCurrency(financialData.lastRaceReserve)}</span></div></div>
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                <div className="bg-red-600 p-5 text-white flex justify-between items-center"><h2 className="text-xl font-black italic flex items-center gap-2 uppercase tracking-tighter"><Trophy size={20}/> Classificação</h2><button onClick={() => window.print()} className="p-2 hover:bg-red-700 rounded transition no-print"><Printer size={20}/></button></div>
+                <table className="w-full text-left"><thead><tr className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 border-b"><th className="p-4">Pos</th><th className="p-4">Nome</th><th className="p-4 text-right pr-6">Pts</th></tr></thead><tbody className="divide-y">{[...users].filter(u => !u.isAdmin).sort((a,b) => (Number(b.points) || 0) - (Number(a.points) || 0)).map((u, i) => (<tr key={u.id} className={u.id === currentUser?.id ? 'bg-yellow-50' : ''}><td className="p-4 text-center font-black text-gray-400">{i+1}º</td><td className="p-4 font-black text-gray-800 uppercase italic text-sm">{u.name}</td><td className="p-4 text-right font-black text-2xl pr-6 text-red-600">{(u.points || 0).toString()}</td></tr>))}</tbody></table>
             </div>
-            <table className="w-full text-left">
-              <thead><tr className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 border-b"><th className="p-4">Pos</th><th className="p-4">Nome</th><th className="p-4 text-right pr-6">Pts</th></tr></thead>
-              <tbody className="divide-y">
-                {/* Filtrando administradores para que não apareçam no ranking */}
-                {[...users].filter(u => !u.isAdmin).sort((a,b) => (Number(b.points) || 0) - (Number(a.points) || 0)).map((u, i) => (
-                  <tr key={u.id} className={u.id === currentUser?.id ? 'bg-yellow-50' : ''}>
-                    <td className="p-4 text-center font-black text-gray-400">{i+1}º</td>
-                    <td className="p-4 font-black text-gray-800 uppercase italic text-sm">{u.name}</td>
-                    <td className="p-4 text-right font-black text-2xl pr-6 text-red-600">{(u.points || 0).toString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
+        )}
+
+        {activeTab === 'conference' && (
+            <div className="bg-white p-6 rounded-xl shadow-md printable-area">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2><div className="flex gap-2 items-center"><select className="p-2 border rounded font-bold text-xs bg-gray-50" value={conferenceRaceId} onChange={e => setConferenceRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select><button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button></div></div>
+                <div className="hidden print:block text-center mb-6"><h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Relatório de Palpites</h1><p className="text-gray-600">{config.races.find(r => r.id === conferenceRaceId)?.name}</p></div>
+                <div className="overflow-x-auto"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead><tbody>{users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => { const bet = bets[`${conferenceRaceId}_${u.id}`]; let displayBet = bet; if (!displayBet) { const race = config.races.find(r => r.id === conferenceRaceId); if (new Date() > new Date(race.deadline)) { const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date)); const currentIndex = sortedRaces.findIndex(r => r.id === conferenceRaceId); if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; } } } return (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>{Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}<td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td></tr>) })}</tbody></table></div>
+            </div>
         )}
 
         {activeTab === 'admin' && (
           <div className="space-y-6 no-print">
             <div className="flex bg-white rounded-lg shadow-sm p-1 gap-1">
-              {['results', 'members', 'settings'].map(t => (
-                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-2 text-xs font-black uppercase rounded ${adminTab === t ? 'bg-red-600 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>
-                  {t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : 'Configurações'}
-                </button>
+              {['results', 'members', 'settings', 'audit', 'finance'].map(t => (
+                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-2 text-xs font-black uppercase rounded ${adminTab === t ? 'bg-red-600 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>{t === 'results' ? 'Resultados' : t === 'members' ? 'Membros' : t === 'audit' ? 'Conferência' : t === 'finance' ? 'Financeiro' : 'Configurações'}</button>
               ))}
             </div>
 
+            {/* ... ABAS EXISTENTES (RESULTADOS, MEMBROS, CONFIG, AUDIT) ... */}
             {adminTab === 'results' && (
               <div className="bg-white p-6 rounded-xl shadow-md border-l-8 border-red-600">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><Calculator/> Lançar Resultado</h2>
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-gray-500">Status: {race.status === 'finished' ? 'Finalizada' : 'Aberta'}</p>
-                    {race.status === 'finished' && <p className="text-[10px] text-red-500">Você pode re-salvar para corrigir</p>}
-                  </div>
-                </div>
-
-                <div className="mb-4 bg-gray-100 p-2 rounded flex justify-between items-center">
-                    <span className="text-xs font-bold text-gray-600">Selecione a Etapa para Lançar:</span>
-                    <select 
-                      className="p-1 text-xs border rounded bg-white" 
-                      value={adminRaceId} 
-                      onChange={e => setAdminRaceId(Number(e.target.value))}
-                    >
-                       {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                </div>
-
+                <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><Calculator/> Lançar Resultado</h2><div className="text-right"><p className="text-xs font-bold text-gray-500">Status: {race.status === 'finished' ? 'Finalizada' : 'Aberta'}</p></div></div>
+                <div className="mb-4 bg-gray-100 p-2 rounded flex justify-between items-center"><span className="text-xs font-bold text-gray-600">Selecione:</span><select className="p-1 text-xs border rounded bg-white" value={adminRaceId} onChange={e => setAdminRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-2">
-                    {adminResult.top10.map((d, i) => (
-                      <select key={i} className="w-full p-2 border rounded-lg text-xs font-bold text-gray-900" value={d} onChange={e => { const nt = [...adminResult.top10]; nt[i] = e.target.value; setAdminResult({...adminResult, top10: nt}); }}>
-                        <option value="">{i+1}º Lugar...</option>
-                        {config.drivers.filter(drv => !adminResult.top10.includes(drv) || adminResult.top10[i] === drv).map(drv => <option key={drv} value={drv}>{drv}</option>)}
-                      </select>
-                    ))}
-                  </div>
-                  <div className="space-y-4">
-                    <select className="w-full p-2 border rounded-lg font-bold text-gray-900" value={adminResult.driverOfDay} onChange={e => setAdminResult({...adminResult, driverOfDay: e.target.value})}>
-                      <option value="">Piloto do Dia...</option>
-                      {config.drivers.map(drv => <option key={drv} value={drv}>{drv}</option>)}
-                    </select>
-                    <button onClick={saveRaceResult} className="w-full bg-red-600 text-white font-black py-4 rounded-xl shadow-lg hover:bg-red-700 transition uppercase tracking-widest">
-                      {config.races.find(r => r.id === adminRaceId)?.status === 'finished' ? 'ATUALIZAR RESULTADO OFICIAL' : 'FINALIZAR ETAPA'}
-                    </button>
-                  </div>
+                  <div className="space-y-2">{adminResult.top10.map((d, i) => (<select key={i} className="w-full p-2 border rounded-lg text-xs font-bold text-gray-900" value={d} onChange={e => { const nt = [...adminResult.top10]; nt[i] = e.target.value; setAdminResult({...adminResult, top10: nt}); }}><option value="">{i+1}º Lugar...</option>{config.drivers.filter(drv => !adminResult.top10.includes(drv) || adminResult.top10[i] === drv).map(drv => <option key={drv} value={drv}>{drv}</option>)}</select>))}</div>
+                  <div className="space-y-4"><select className="w-full p-2 border rounded-lg font-bold text-gray-900" value={adminResult.driverOfDay} onChange={e => setAdminResult({...adminResult, driverOfDay: e.target.value})}><option value="">Piloto do Dia...</option>{config.drivers.map(drv => <option key={drv} value={drv}>{drv}</option>)}</select><button onClick={saveRaceResult} className="w-full bg-red-600 text-white font-black py-4 rounded-xl shadow-lg hover:bg-red-700 transition uppercase tracking-widest">{config.races.find(r => r.id === adminRaceId)?.status === 'finished' ? 'ATUALIZAR RESULTADO OFICIAL' : 'FINALIZAR ETAPA'}</button></div>
                 </div>
               </div>
             )}
 
             {adminTab === 'members' && (
-              <div className="bg-white p-6 rounded-xl shadow-md">
-                <h2 className="text-lg font-black uppercase text-gray-500 mb-4 flex items-center gap-2"><Users size={18}/> Gestão de Membros</h2>
-                <div className="space-y-3">
-                  {users.filter(u => !u.isAdmin).map(u => (
-                    <div key={u.id} className="flex justify-between items-center p-4 border rounded-xl">
-                      <span className="font-black text-gray-800 uppercase italic text-sm">{u.name}</span>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => togglePayment(u.id, u.paymentConfirmed)} 
-                          className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all ${u.paymentConfirmed ? 'bg-green-100 text-green-700' : 'bg-red-500 text-white'}`}
-                        >
-                          {u.paymentConfirmed ? 'Pago' : 'Pendente'}
-                        </button>
-                        <button onClick={() => deleteUserDoc(u.id)} className="text-gray-300 hover:text-red-600"><Trash2 size={20}/></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+               <div className="bg-white p-6 rounded-xl shadow-md">
+                 {/* ... TABELA DE MEMBROS EXISTENTE ... */}
+                 <h2 className="text-lg font-black uppercase text-gray-500 mb-4 flex items-center gap-2"><Users size={18}/> Gestão de Membros</h2>
+                 <div className="space-y-3">
+                   {users.filter(u => !u.isAdmin).map(u => (
+                     <div key={u.id} className="flex justify-between items-center p-4 border rounded-xl">
+                       <div className="flex flex-col">
+                          <span className="font-black text-gray-800 uppercase italic text-sm">{u.name}</span>
+                          <span className="text-[10px] text-gray-400">Desc. Indicação: {formatCurrency(u.discount || 0)}</span>
+                       </div>
+                       <div className="flex gap-2">
+                         <button onClick={() => togglePayment(u.id, u.paymentConfirmed)} className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all ${u.paymentConfirmed ? 'bg-green-100 text-green-700' : 'bg-red-500 text-white'}`}>{u.paymentConfirmed ? 'Pago' : 'Pendente'}</button>
+                         <button onClick={() => deleteUserDoc(u.id)} className="text-gray-300 hover:text-red-600"><Trash2 size={20}/></button>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+               </div>
             )}
 
+            {adminTab === 'finance' && (
+                <div className="bg-white p-6 rounded-xl shadow-md space-y-6">
+                    <h2 className="text-xl font-black uppercase italic text-green-800 flex items-center gap-2"><DollarSign/> Gestão Financeira</h2>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                            <p className="text-xs text-green-600 uppercase font-bold">Total Arrecadado</p>
+                            <p className="text-2xl font-black text-green-900">{formatCurrency(financialData.totalCollected)}</p>
+                            <p className="text-[10px] text-gray-500">{financialData.count} pagantes</p>
+                        </div>
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                            <p className="text-xs text-blue-600 uppercase font-bold">Pote Final (Campeão)</p>
+                            <p className="text-2xl font-black text-blue-900">{formatCurrency(financialData.finalPrizePool)}</p>
+                        </div>
+                        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                            <p className="text-xs text-purple-600 uppercase font-bold">Prêmio por Etapa</p>
+                            <p className="text-2xl font-black text-purple-900">{formatCurrency(financialData.prizePerStage)}</p>
+                        </div>
+                        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                            <p className="text-xs text-yellow-600 uppercase font-bold">Reserva Última Etapa</p>
+                            <p className="text-2xl font-black text-yellow-900">{formatCurrency(financialData.lastRaceReserve)}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 className="font-bold text-gray-700 mb-4 border-b pb-2">Lançar Descontos de Indicação</h3>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {users.filter(u => !u.isAdmin).map(u => (
+                                <div key={u.id} className="flex justify-between items-center p-2 border rounded hover:bg-gray-50">
+                                    <span className="text-sm font-bold">{u.name}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-500">Desconto R$:</span>
+                                        <input 
+                                            type="number" 
+                                            className="border rounded p-1 w-20 text-sm" 
+                                            value={u.discount || 0} 
+                                            onChange={(e) => updateDiscount(u.id, e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* MANTER SETTINGS E AUDIT COMO ESTAVAM */}
             {adminTab === 'settings' && (
-              <div className="space-y-6">
-                
-                {/* NOVA SEÇÃO: ATUALIZAR CALENDÁRIO (FIX) */}
-                <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-red-500">
-                  <h2 className="text-lg font-black uppercase text-red-700 mb-4 flex items-center gap-2"><RefreshCw size={18}/> Reset de Emergência</h2>
-                  <p className="text-xs text-gray-500 mb-4">
-                    Use este botão APENAS para corrigir a ordem das corridas se elas estiverem erradas (ex: Bahrein primeiro em vez de Austrália). 
-                    Isso vai sobrescrever o calendário atual no banco.
-                  </p>
-                  <button 
-                    onClick={resetCalendar}
-                    className="bg-red-600 text-white px-4 py-3 rounded font-black uppercase hover:bg-red-700 shadow-md w-full"
-                  >
-                    RESTAURAR CALENDÁRIO OFICIAL (2026)
-                  </button>
+                <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-red-500"><h2 className="text-lg font-black uppercase text-red-700 mb-4 flex items-center gap-2"><RefreshCw size={18}/> Reset de Emergência</h2><p className="text-xs text-gray-500 mb-4">Use APENAS para corrigir ordem das corridas.</p><button onClick={resetCalendar} className="bg-red-600 text-white px-4 py-3 rounded font-black uppercase hover:bg-red-700 shadow-md w-full">RESTAURAR CALENDÁRIO OFICIAL (2026)</button></div>
+                    <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500"><h2 className="text-lg font-black uppercase text-yellow-700 mb-4 flex items-center gap-2"><Trophy size={18}/> Finalizar Temporada</h2><div className="flex gap-2"><select className="flex-1 border p-2 rounded text-sm font-bold" value={config.officialChampion || ""} onChange={e => setConfig({...config, officialChampion: e.target.value})}><option value="">Selecione...</option>{config.drivers.map(d => <option key={d} value={d}>{d}</option>)}</select><button onClick={async () => { if(window.confirm("Confirmar?")) { await updateDoc(doc(db, 'config', 'main'), { officialChampion: config.officialChampion }); await processRecalculation(results); alert("Feito!"); } }} className="bg-yellow-500 text-white px-4 py-2 rounded font-black uppercase hover:bg-yellow-600 shadow-md">Confirmar</button></div></div>
+                    {/* ... (Gerenciar Corridas e Pilotos mantidos igual) ... */}
+                    <div className="bg-white p-6 rounded-xl shadow-md"><h2 className="text-lg font-black uppercase text-gray-800 mb-4 flex items-center gap-2"><CalendarDays size={18}/> Gerenciar Corridas</h2><div className="space-y-4 max-h-[600px] overflow-y-auto">{config.races.sort((a,b) => new Date(a.date) - new Date(b.date)).map(r => (<div key={r.id} className="border p-4 rounded-lg bg-gray-50 space-y-3">{editingRace === r.id ? (<div className="space-y-3"><input className="w-full border p-2 rounded text-sm font-bold" value={r.name} onChange={e => { const nr = {...r, name: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /><div className="grid grid-cols-2 gap-2"><div><label className="text-[10px] font-bold text-gray-500 uppercase">Data</label><input type="date" className="w-full border p-2 rounded text-sm" value={r.date} onChange={e => { const nr = {...r, date: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /></div><div><label className="text-[10px] font-bold text-red-500 uppercase">Limite</label><input type="datetime-local" className="w-full border p-2 rounded text-sm border-red-200" value={r.deadline} onChange={e => { const nr = {...r, deadline: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /></div></div><div><label className="text-[10px] font-bold text-blue-500 uppercase flex items-center gap-1"><AlertTriangle size={10}/> Grid (1ª Etapa)</label><div className="grid grid-cols-5 gap-1 mt-1">{Array(10).fill(0).map((_, i) => (<select key={i} className="text-[10px] border rounded p-1" value={r.startingGrid?.[i] || ""} onChange={e => { const newGrid = [...(r.startingGrid || Array(10).fill(""))]; newGrid[i] = e.target.value; const nr = {...r, startingGrid: newGrid}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }}><option value="">{i+1}º...</option>{config.drivers.map(d => <option key={d} value={d}>{d}</option>)}</select>))}</div></div><div className="flex justify-end gap-2"><button onClick={() => setEditingRace(null)} className="text-gray-500 text-xs font-bold uppercase px-3">Cancelar</button><button onClick={() => updateRaceConfig(r)} className="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold uppercase shadow">Salvar</button></div></div>) : (<div className="flex justify-between items-center"><div><div className="font-bold text-sm text-gray-800">{r.name}</div><div className="text-xs text-gray-500">Limite: <span className="font-mono text-red-600">{new Date(r.deadline).toLocaleString()}</span></div>{r.startingGrid?.length > 0 && <div className="text-[10px] text-blue-600 mt-1">Grid cadastrado ✅</div>}</div><button onClick={() => setEditingRace(r.id)} className="text-blue-500 hover:text-blue-700 bg-white p-2 rounded border shadow-sm"><Edit size={16}/></button></div>)}</div>))}</div></div>
                 </div>
-                
-                {/* SEÇÃO DEFINIR CAMPEÃO */}
-                <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500">
-                  <h2 className="text-lg font-black uppercase text-yellow-700 mb-4 flex items-center gap-2"><Trophy size={18}/> Finalizar Temporada</h2>
-                  <p className="text-xs text-gray-500 mb-4">Selecione o campeão apenas ao final do campeonato.</p>
-                  <div className="flex gap-2">
-                    <select 
-                      className="flex-1 border p-2 rounded text-sm font-bold" 
-                      value={config.officialChampion || ""} 
-                      onChange={e => setConfig({...config, officialChampion: e.target.value})}
-                    >
-                        <option value="">Selecione o Campeão...</option>
-                        {config.drivers.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                    <button 
-                      onClick={async () => {
-                        if(!config.officialChampion) return alert("Selecione um piloto");
-                        if(window.confirm("Confirmar campeão? Isso afetará a pontuação final.")) {
-                            await updateDoc(doc(db, 'config', 'main'), { officialChampion: config.officialChampion });
-                            await processRecalculation(results);
-                            alert("Campeão definido!");
-                        }
-                      }} 
-                      className="bg-yellow-500 text-white px-4 py-2 rounded font-black uppercase hover:bg-yellow-600 shadow-md"
-                    >
-                      Confirmar
-                    </button>
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow-md">
-                  <h2 className="text-lg font-black uppercase text-gray-800 mb-4 flex items-center gap-2"><CalendarDays size={18}/> Gerenciar Corridas e Prazos</h2>
-                  <div className="bg-blue-50 border border-blue-200 p-3 rounded mb-4 text-xs text-blue-800">
-                    <strong>Nota:</strong> Defina o "Grid de Largada" apenas se quiser ativar a regra automática para quem faltar na 1ª aposta.
-                  </div>
-                  <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                    {config.races.sort((a,b) => new Date(a.date) - new Date(b.date)).map(r => (
-                      <div key={r.id} className="border p-4 rounded-lg bg-gray-50 space-y-3">
-                        {editingRace === r.id ? (
-                          <div className="space-y-3">
-                            <input className="w-full border p-2 rounded text-sm font-bold" value={r.name} onChange={e => { const nr = {...r, name: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} />
-                            <div className="grid grid-cols-2 gap-2">
-                              <div><label className="text-[10px] font-bold text-gray-500 uppercase">Data da Corrida</label><input type="date" className="w-full border p-2 rounded text-sm" value={r.date} onChange={e => { const nr = {...r, date: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /></div>
-                              <div><label className="text-[10px] font-bold text-red-500 uppercase">Limite Apostas (Deadline)</label><input type="datetime-local" className="w-full border p-2 rounded text-sm border-red-200" value={r.deadline} onChange={e => { const nr = {...r, deadline: e.target.value}; setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)}); }} /></div>
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-blue-500 uppercase flex items-center gap-1"><AlertTriangle size={10}/> Grid de Largada (Para regra de falta na 1ª Etapa)</label>
-                              <div className="grid grid-cols-5 gap-1 mt-1">
-                                {Array(10).fill(0).map((_, i) => (
-                                  <select key={i} className="text-[10px] border rounded p-1" value={r.startingGrid?.[i] || ""} onChange={e => {
-                                    const newGrid = [...(r.startingGrid || Array(10).fill(""))]; newGrid[i] = e.target.value;
-                                    const nr = {...r, startingGrid: newGrid};
-                                    setConfig({...config, races: config.races.map(x => x.id === r.id ? nr : x)});
-                                  }}>
-                                    <option value="">{i+1}º...</option>
-                                    {config.drivers.map(d => <option key={d} value={d}>{d}</option>)}
-                                  </select>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="flex justify-end gap-2"><button onClick={() => setEditingRace(null)} className="text-gray-500 text-xs font-bold uppercase px-3">Cancelar</button><button onClick={() => updateRaceConfig(r)} className="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold uppercase shadow">Salvar Alterações</button></div>
-                          </div>
-                        ) : (
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <div className="font-bold text-sm text-gray-800">{r.name}</div>
-                              <div className="text-xs text-gray-500">Limite: <span className="font-mono text-red-600">{new Date(r.deadline).toLocaleString()}</span></div>
-                              {r.startingGrid?.length > 0 && <div className="text-[10px] text-blue-600 mt-1">Grid cadastrado ✅</div>}
-                            </div>
-                            <button onClick={() => setEditingRace(r.id)} className="text-blue-500 hover:text-blue-700 bg-white p-2 rounded border shadow-sm"><Edit size={16}/></button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow-md">
-                  <h2 className="text-lg font-black uppercase text-gray-800 mb-4 flex items-center gap-2"><UserCog size={18}/> Pilotos</h2>
-                  <div className="flex gap-2 mb-4">
-                    <input type="text" placeholder="Novo Piloto" className="flex-1 border p-2 rounded" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} />
-                    <button onClick={async () => { if(newDriverName){ await updateDoc(doc(db, 'config', 'main'), { drivers: [...config.drivers, newDriverName].sort() }); setNewDriverName(""); } }} className="bg-green-600 text-white p-2 rounded"><PlusCircle size={20}/></button>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {config.drivers.map(d => (
-                      <div key={d} className="flex items-center justify-between bg-gray-50 p-2 rounded text-xs font-bold border">
-                        {d}
-                        <button onClick={async () => { if(window.confirm("Remover?")) await updateDoc(doc(db, 'config', 'main'), { drivers: config.drivers.filter(x => x !== d) }); }} className="text-red-400 hover:text-red-600"><X size={14}/></button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            )}
+            {adminTab === 'audit' && (
+              <div className="bg-white p-6 rounded-xl shadow-md printable-area">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2><div className="flex gap-2 items-center"><select className="p-2 border rounded font-bold text-xs bg-gray-50" value={adminRaceId} onChange={e => setAdminRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select><button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir / PDF</button></div></div>
+                  <div className="hidden print:block text-center mb-6"><h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Relatório de Palpites</h1><p className="text-gray-600">{config.races.find(r => r.id === adminRaceId)?.name}</p></div>
+                  <div className="overflow-x-auto"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead><tbody>{users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => { const bet = bets[`${adminRaceId}_${u.id}`]; let displayBet = bet; if (!displayBet) { const race = config.races.find(r => r.id === adminRaceId); if (new Date() > new Date(race.deadline)) { const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date)); const currentIndex = sortedRaces.findIndex(r => r.id === adminRaceId); if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; } } } return (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>{Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}<td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td></tr>) })}</tbody></table></div>
               </div>
             )}
           </div>
@@ -714,11 +814,16 @@ export default function App() {
 
       <nav className="fixed bottom-0 left-0 w-full bg-white border-t p-3 flex justify-around shadow-inner z-50 no-print">
         <button onClick={() => setActiveTab(currentUser?.isAdmin ? 'admin' : 'dashboard')} className={`flex flex-col items-center ${activeTab === 'dashboard' || activeTab === 'admin' ? 'text-red-600' : 'text-gray-400'}`}>
-          <CheckCircle size={24}/> <span className="text-[9px] font-black uppercase">Apostar</span>
+          <CheckCircle size={24}/> <span className="text-[9px] font-black uppercase">Tela de Apostas</span>
         </button>
         <button onClick={() => setActiveTab('ranking')} className={`flex flex-col items-center ${activeTab === 'ranking' ? 'text-red-600' : 'text-gray-400'}`}>
           <Trophy size={24}/> <span className="text-[9px] font-black uppercase">Ranking</span>
         </button>
+        {currentUser?.isAdmin && (
+            <button onClick={() => setActiveTab('conference')} className={`flex flex-col items-center ${activeTab === 'conference' ? 'text-red-600' : 'text-gray-400'}`}>
+                <FileText size={24}/> <span className="text-[9px] font-black uppercase">Conferência</span>
+            </button>
+        )}
       </nav>
     </div>
   );
