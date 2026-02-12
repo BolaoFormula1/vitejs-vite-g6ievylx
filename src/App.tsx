@@ -146,7 +146,7 @@ const RegisterScreen = ({ onRegister, onBack }) => {
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
-        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')", // Nova imagem de F1 em pista
+        backgroundImage: "url('https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?q=80&w=2070&auto=format&fit=crop')", // Nova imagem estável
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -154,7 +154,6 @@ const RegisterScreen = ({ onRegister, onBack }) => {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
       <div className="w-full max-w-md bg-gray-900/90 p-8 rounded-xl shadow-2xl border border-gray-700 relative z-10">
         <div className="flex flex-col items-center mb-6">
-            {/* Logo da F1 com filtro para vermelho */}
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg" alt="F1 Logo" className="h-12 mb-2 w-auto" style={{ filter: "brightness(0) saturate(100%) invert(18%) sepia(88%) saturate(5946%) hue-rotate(356deg) brightness(93%) contrast(114%)" }} />
             <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">F1 BOLÃO '26</h1>
         </div>
@@ -344,11 +343,19 @@ export default function App() {
   const financialData = useMemo(() => {
     const payingUsers = users.filter(u => u.paymentConfirmed && !u.isAdmin);
     const count = payingUsers.length;
+    
+    // Receita Total (considerando descontos)
     const totalCollected = payingUsers.reduce((acc, u) => acc + (300 - (u.discount || 0)), 0);
+    
+    // Despesas/Potes Fixos
     const finalPrizePool = count * 240; 
     const lastRaceReserve = 300; 
+    
+    // Sobra para prêmios por etapa
     const remainingForStages = totalCollected - finalPrizePool - lastRaceReserve;
+    // AJUSTE: Math.floor para arredondar para baixo
     const prizePerStage = count > 0 ? Math.floor(remainingForStages / 23) : 0; 
+
     return { count, totalCollected, finalPrizePool, lastRaceReserve, prizePerStage };
   }, [users]);
 
@@ -607,7 +614,7 @@ export default function App() {
 
   if (activeTab === 'login') return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 relative bg-cover bg-center" style={{
-        backgroundImage: "url('https://images.unsplash.com/photo-1631558296316-24874b335359?q=80&w=2070&auto=format&fit=crop')",
+        backgroundImage: "url('https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?q=80&w=2070&auto=format&fit=crop')",
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -635,6 +642,7 @@ export default function App() {
             </button>
           </div>
           {loginError && <div className="text-red-400 text-xs text-center font-bold">{loginError}</div>}
+          
           <button 
               type="submit" 
               disabled={isLoading}
@@ -738,9 +746,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                <select className="p-2 border rounded font-bold text-sm bg-gray-50 text-gray-900" value={selectedRaceId} onChange={e => setSelectedRaceId(Number(e.target.value))}>
-                  {config.races.map(r => <option key={r.id} value={r.id}>{r.name} {results[r.id] ? '🏁' : ''}</option>)}
-                </select>
+                <select className="p-2 border rounded font-bold text-sm bg-gray-50 text-gray-900" value={selectedRaceId} onChange={e => setSelectedRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name} {results[r.id] ? '🏁' : ''}</option>)}</select>
               </div>
 
               {results[race.id] ? (
@@ -766,10 +772,31 @@ export default function App() {
                                 const driver = currentBet.top10[i]; const officialResult = results[race.id]; let points = 0; let style = "bg-gray-100 text-gray-400";
                                 if (driver) { const officialPos = officialResult.top10.indexOf(driver); const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM; const consolation = race.isBrazil ? 2 : 1;
                                     if (officialPos === i) { points = table[i]; style = "bg-green-100 text-green-700 border-green-300 font-bold"; } else if (officialPos !== -1) { points = consolation; style = "bg-yellow-50 text-yellow-700 border-yellow-200"; } }
-                                return (<div key={i} className="flex items-center gap-3"><span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span><div className="flex-1 flex items-center gap-2"><div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>{driver || "-"}</div><div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>+{points}</div></div></div>);
+                                return (<div key={i} className="flex items-center gap-3">
+                                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span>
+                                        <div className="flex-1 flex items-center gap-2">
+                                             <div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>{driver || "-"}</div>
+                                             <div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>+{points}</div>
+                                        </div>
+                                    </div>);
                             })}
                         </div>
-                        <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><div className="flex items-center gap-2"><div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div><div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-400"}`}>+{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}</div></div></div></div>
+
+                        <div className="space-y-6">
+                            <div className="bg-gray-50 p-5 rounded-xl border">
+                                <h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3>
+                                <div className="flex items-center gap-2">
+                                    <div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div>
+                                    <div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${
+                                        currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay
+                                        ? "bg-green-100 text-green-700 border-green-300"
+                                        : "bg-gray-100 text-gray-400"
+                                    }`}>
+                                        +{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                       </div>
                   </div>
               ) : (
