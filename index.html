@@ -3,28 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     
-    <!-- Ícone da aba do navegador (Favicon) - Forçando F1 -->
-    <link rel="icon" type="image/png" sizes="32x32" href="https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/F1.svg/32px-F1.svg.png?v=2" />
-    <link rel="icon" type="image/png" sizes="16x16" href="https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/F1.svg/16px-F1.svg.png?v=2" />
-    <link rel="shortcut icon" href="https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/F1.svg/64px-F1.svg.png?v=2" />
+    <!-- Ícone da aba do navegador e atalho padrão -->
+    <link rel="icon" type="image/png" href="/f1-icon.png" />
     
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- Ícone específico para adicionar à Tela Inicial do iPhone (iOS) -->
+    <link rel="apple-touch-icon" href="/f1-icon.png" />
+    
+    <!-- Arquivo de configuração para Android (PWA) -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e10600" />
+    
     <title>Bolão F1 2026</title>
-    
-    <!-- --- CONFIGURAÇÃO AVANÇADA PARA IPHONE (iOS) --- -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Bolão F1">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <!-- Ícone de Alta Resolução para iPhone -->
-    <link rel="apple-touch-icon" sizes="180x180" href="https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/F1.svg/180px-F1.svg.png?v=2">
-    
-    <!-- Configuração para Android (PWA) -->
-    <link rel="manifest" href="/manifest.json">
-    
-    <!-- Cor da barra de endereço no celular (Vermelho F1) -->
-    <meta name="theme-color" content="#e10600">
-    
-    <!-- Tailwind -->
+
+    <!-- Tailwind CSS - Garante que o design e as cores do site funcionem corretamente -->
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>
