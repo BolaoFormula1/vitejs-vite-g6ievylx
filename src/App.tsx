@@ -247,6 +247,7 @@ export default function App() {
   // Estado para indicar se os dados foram carregados
   const [isLoading, setIsLoading] = useState(true);
   const [hasAutoSelectedRace, setHasAutoSelectedRace] = useState(false); // Flag para seleção automática única
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => { 
@@ -335,6 +336,7 @@ export default function App() {
       const existing = results[adminRaceId];
       if (existing) setAdminResult(existing);
       else setAdminResult({ top10: Array(10).fill(""), driverOfDay: "" });
+      setShowDeleteConfirm(false);
     }
   }, [adminRaceId, activeTab, adminTab, results]);
 
@@ -581,6 +583,20 @@ export default function App() {
     } catch (e) { alert("Erro: " + e.message); }
   };
 
+  const deleteRaceResult = async () => {
+    try {
+      await deleteDoc(doc(db, 'results', adminRaceId.toString()));
+      const newRaces = config.races.map(r => r.id === adminRaceId ? { ...r, status: 'pending' } : r);
+      await updateDoc(doc(db, 'config', 'main'), { races: newRaces });
+      const updatedResults = { ...results };
+      delete updatedResults[adminRaceId];
+      await processRecalculation(updatedResults, adminRaceId);
+      setAdminResult({ top10: Array(10).fill(""), driverOfDay: "" });
+      setShowDeleteConfirm(false);
+      alert("Resultado da etapa cancelado e pontos recalculados com sucesso!");
+    } catch (e) { alert("Erro ao cancelar resultado: " + e.message); }
+  };
+
   const updateRaceConfig = async (race) => {
     const updatedRaces = config.races.map(r => r.id === race.id ? race : r);
     await updateDoc(doc(db, 'config', 'main'), { races: updatedRaces });
@@ -786,7 +802,25 @@ export default function App() {
                 <div className="mb-4 bg-gray-100 p-2 rounded flex justify-between items-center"><span className="text-xs font-bold text-gray-600">Selecione:</span><select className="p-1 text-xs border rounded bg-white" value={adminRaceId} onChange={e => setAdminRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">{adminResult.top10.map((d, i) => (<select key={i} className="w-full p-2 border rounded-lg text-xs font-bold text-gray-900" value={d} onChange={e => { const nt = [...adminResult.top10]; nt[i] = e.target.value; setAdminResult({...adminResult, top10: nt}); }}><option value="">{i+1}º Lugar...</option>{config.drivers.filter(drv => !adminResult.top10.includes(drv) || adminResult.top10[i] === drv).map(drv => <option key={drv} value={drv}>{drv}</option>)}</select>))}</div>
-                  <div className="space-y-4"><select className="w-full p-2 border rounded-lg font-bold text-gray-900" value={adminResult.driverOfDay} onChange={e => setAdminResult({...adminResult, driverOfDay: e.target.value})}><option value="">Piloto do Dia...</option>{config.drivers.map(drv => <option key={drv} value={drv}>{drv}</option>)}</select><button onClick={saveRaceResult} className="w-full bg-red-600 text-white font-black py-4 rounded-xl shadow-lg hover:bg-red-700 transition uppercase tracking-widest">{config.races.find(r => r.id === adminRaceId)?.status === 'finished' ? 'ATUALIZAR RESULTADO OFICIAL' : 'FINALIZAR ETAPA'}</button></div>
+                  <div className="space-y-4">
+                    <select className="w-full p-2 border rounded-lg font-bold text-gray-900" value={adminResult.driverOfDay} onChange={e => setAdminResult({...adminResult, driverOfDay: e.target.value})}><option value="">Piloto do Dia...</option>{config.drivers.map(drv => <option key={drv} value={drv}>{drv}</option>)}</select>
+                    <div className="flex flex-col gap-2">
+                      <button onClick={saveRaceResult} className="w-full bg-red-600 text-white font-black py-4 rounded-xl shadow-lg hover:bg-red-700 transition uppercase tracking-widest">{config.races.find(r => r.id === adminRaceId)?.status === 'finished' ? 'ATUALIZAR RESULTADO OFICIAL' : 'FINALIZAR ETAPA'}</button>
+                      {config.races.find(r => r.id === adminRaceId)?.status === 'finished' && (
+                        !showDeleteConfirm ? (
+                          <button onClick={() => setShowDeleteConfirm(true)} className="w-full bg-white text-red-600 border-2 border-red-100 font-bold py-3 rounded-xl hover:bg-red-50 transition uppercase text-xs flex items-center justify-center gap-2"><Trash2 size={16}/> Cancelar Resultado Desta Etapa</button>
+                        ) : (
+                          <div className="p-3 border-2 border-red-500 bg-red-50 rounded-xl space-y-3">
+                            <p className="text-[11px] text-red-800 font-bold text-center leading-tight uppercase">ATENÇÃO: Os pontos desta etapa serão removidos. Palpites mantidos.</p>
+                            <div className="flex gap-2">
+                              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded-lg text-[10px] hover:bg-gray-100 uppercase">Cancelar</button>
+                              <button onClick={deleteRaceResult} className="flex-1 bg-red-600 text-white font-black py-2 rounded-lg text-[10px] hover:bg-red-700 uppercase shadow-md">Confirmar Ação</button>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
