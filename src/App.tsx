@@ -111,6 +111,36 @@ const INITIAL_RACES = [
 const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 const POINTS_SYSTEM_BRAZIL = [50, 36, 30, 24, 20, 16, 12, 8, 4, 2];
 
+// --- FUNÇÃO PARA CORES DAS EQUIPES ---
+const getDriverColorClasses = (driverName) => {
+  if (!driverName) return 'bg-white border-gray-200';
+  const name = driverName.toLowerCase();
+  
+  // Ferrari (Vermelho)
+  if (name.includes('leclerc') || name.includes('hamilton')) return 'bg-red-50 border-red-300';
+  // McLaren (Laranja Papaya)
+  if (name.includes('norris') || name.includes('piastri')) return 'bg-orange-50 border-orange-300';
+  // Red Bull (Azul Escuro)
+  if (name.includes('verstappen') || name.includes('pérez') || name.includes('perez')) return 'bg-blue-100 border-blue-400';
+  // Mercedes (Teal / Prata)
+  if (name.includes('russell') || name.includes('antonelli')) return 'bg-teal-50 border-teal-300';
+  // Aston Martin (Verde Esmeralda)
+  if (name.includes('alonso') || name.includes('stroll')) return 'bg-emerald-50 border-emerald-300';
+  // Williams (Azul Claro)
+  if (name.includes('albon') || name.includes('sainz')) return 'bg-sky-50 border-sky-300';
+  // Alpine (Rosa/Azul)
+  if (name.includes('gasly') || name.includes('colapinto')) return 'bg-pink-50 border-pink-300';
+  // Haas (Cinza / Branco)
+  if (name.includes('ocon') || name.includes('bearman')) return 'bg-stone-100 border-stone-300';
+  // VCARB / Racing Bulls (Indigo / Azul)
+  if (name.includes('lawson') || name.includes('hadjar') || name.includes('lindblad') || name.includes('tsunoda')) return 'bg-indigo-50 border-indigo-300';
+  // Sauber / Audi (Verde Limão / Preto)
+  if (name.includes('hülkenberg') || name.includes('hulkenberg') || name.includes('bortoleto') || name.includes('bottas')) return 'bg-lime-50 border-lime-300';
+  
+  // Padrão
+  return 'bg-gray-50 border-gray-200'; 
+};
+
 // Componentes UI
 const PrintStyles = () => (
   <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; color: black !important; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; background: white !important; } .no-print { display: none !important; } }`}</style>
@@ -248,6 +278,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasAutoSelectedRace, setHasAutoSelectedRace] = useState(false); // Flag para seleção automática única
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [conferenceTab, setConferenceTab] = useState('races'); // Nova aba de conferência
 
   useEffect(() => {
     const initAuth = async () => { 
@@ -490,8 +521,9 @@ export default function App() {
 
       if (config.officialChampion && u.championGuess === config.officialChampion) {
         const participants = users.filter(usr => !usr.isAdmin).length;
+        const totalPot = Math.max(200, participants * 10);
         const winners = users.filter(usr => usr.championGuess === config.officialChampion).length;
-        total += winners > 0 ? Math.floor((participants * config.financial.perUserPoints) / winners) : 0;
+        total += winners > 0 ? Math.ceil(totalPot / winners) : 0;
       }
       const uRef = doc(db, 'users', u.id);
       batch.update(uRef, { points: total });
@@ -780,11 +812,136 @@ export default function App() {
         )}
 
         {activeTab === 'conference' && (
-            <div className="bg-white p-6 rounded-xl shadow-md printable-area">
-                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print"><h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Conferência</h2><div className="flex gap-2 items-center"><select className="p-2 border rounded font-bold text-xs bg-gray-50" value={conferenceRaceId} onChange={e => setConferenceRaceId(Number(e.target.value))}>{config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select><button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button></div></div>
+          <div className="max-w-4xl mx-auto space-y-6">
+            <h2 className="text-2xl font-black text-gray-900 italic uppercase">Conferência</h2>
+            
+            {/* Navegação da Conferência */}
+            <div className="flex gap-2 no-print">
+              <button onClick={() => setConferenceTab('races')} className={`flex-1 py-3 rounded-xl font-bold uppercase text-xs transition ${conferenceTab === 'races' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'}`}>Resultados das Etapas</button>
+              <button onClick={() => setConferenceTab('champion')} className={`flex-1 py-3 rounded-xl font-bold uppercase text-xs transition ${conferenceTab === 'champion' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'}`}>Campeão 2026</button>
+            </div>
+
+            {/* ABA: RESULTADOS DAS ETAPAS */}
+            {conferenceTab === 'races' && (
+              <div className="bg-white p-6 rounded-xl shadow-md printable-area">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print">
+                    <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><FileText/> Relatório da Etapa</h2>
+                    <div className="flex gap-2 items-center">
+                        <select className="p-2 border rounded font-bold text-xs bg-gray-50" value={conferenceRaceId} onChange={e => setConferenceRaceId(Number(e.target.value))}>
+                            {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
+                        <button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button>
+                    </div>
+                </div>
                 <div className="hidden print:block text-center mb-6"><h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Relatório de Palpites</h1><p className="text-gray-600">{config.races.find(r => r.id === conferenceRaceId)?.name}</p></div>
                 <div className="overflow-x-auto"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead><tbody>{users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => { const bet = bets[`${conferenceRaceId}_${u.id}`]; let displayBet = bet; if (!displayBet) { const race = config.races.find(r => r.id === conferenceRaceId); if (new Date() > new Date(race.deadline)) { const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date)); const currentIndex = sortedRaces.findIndex(r => r.id === conferenceRaceId); if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; } } } return (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>{Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}<td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td></tr>) })}</tbody></table></div>
-            </div>
+              </div>
+            )}
+
+            {/* ABA: PALPITES DE CAMPEÃO */}
+            {conferenceTab === 'champion' && (
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 printable-area">
+                <div className="flex justify-between items-center mb-6 no-print">
+                  <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><Trophy/> Relatório do Campeão</h2>
+                  <button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button>
+                </div>
+                <div className="hidden print:block text-center mb-6"><h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Apostas para Campeão</h1></div>
+
+                <div className="mb-6 bg-red-50 p-5 rounded-xl border border-red-100 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-red-800 font-black uppercase text-lg">Pote Total de Pontos</h3>
+                    <p className="text-red-600 text-xs font-bold mt-1">Garantido: Mín. 200 pts (10 pts por participante)</p>
+                  </div>
+                  <div className="text-3xl font-black text-red-600">
+                    {Math.max(200, users.filter(u => !u.isAdmin).length * 10)} <span className="text-lg">pts</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(() => {
+                    const participants = users.filter(u => !u.isAdmin);
+                    const totalPot = Math.max(200, participants.length * 10);
+                    
+                    // Agrupar usuários por piloto escolhido
+                    const groupedPicks = {};
+                    let usersWithoutPick = [];
+
+                    participants.forEach(u => {
+                      if (u.championGuess) {
+                        if (!groupedPicks[u.championGuess]) groupedPicks[u.championGuess] = [];
+                        groupedPicks[u.championGuess].push(u.name);
+                      } else {
+                        usersWithoutPick.push(u.name);
+                      }
+                    });
+
+                    // Ordenar pilotos por número de apostas (do mais apostado para o menos)
+                    const sortedDrivers = Object.keys(groupedPicks).sort((a, b) => groupedPicks[b].length - groupedPicks[a].length);
+
+                    return (
+                      <>
+                        {sortedDrivers.map(driver => {
+                          const bettors = groupedPicks[driver];
+                          const potentialPoints = Math.ceil(totalPot / bettors.length);
+                          const isWinner = config.officialChampion && driver === config.officialChampion;
+                          const isLoser = config.officialChampion && driver !== config.officialChampion;
+                          
+                          const baseColors = getDriverColorClasses(driver);
+                          let cardClasses = `${baseColors} hover:shadow-md transition-all`;
+                          
+                          if (config.officialChampion) {
+                              if (isWinner) cardClasses = `${baseColors} border-4 border-green-500 shadow-xl scale-[1.02]`;
+                              else cardClasses = `bg-gray-50 border-gray-200 opacity-60 grayscale`;
+                          }
+
+                          return (
+                            <div key={driver} className={`flex flex-col p-5 rounded-xl border-2 ${cardClasses}`}>
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <h3 className="font-black text-gray-900 text-lg uppercase italic">{driver}</h3>
+                                  <p className="text-xs text-gray-600 font-bold opacity-80">{bettors.length} aposta{bettors.length > 1 ? 's' : ''}</p>
+                                </div>
+                                <div className="text-right bg-white/60 p-2 rounded-lg shadow-sm border border-white/50">
+                                  <div className="text-[10px] text-gray-700 uppercase font-bold tracking-wider">Potencial (Odd)</div>
+                                  <div className={`font-black text-2xl ${isWinner ? 'text-green-600' : 'text-gray-900'}`}>+{potentialPoints}</div>
+                                </div>
+                              </div>
+                              <div className="mt-3 divide-y divide-black/10 border-t border-black/10 pt-2">
+                                {bettors.sort().map(name => (
+                                  <div key={name} className="py-2 text-sm font-bold text-gray-800 flex items-center gap-2">
+                                     <User size={14} className="text-black/40"/> {name}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Mostrar quem não apostou, se houver */}
+                        {usersWithoutPick.length > 0 && (
+                          <div className="flex flex-col p-5 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 opacity-70">
+                             <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <h3 className="font-black text-gray-500 text-lg uppercase italic">Sem Palpite</h3>
+                                  <p className="text-xs text-gray-400 font-bold">{usersWithoutPick.length} participante{usersWithoutPick.length > 1 ? 's' : ''}</p>
+                                </div>
+                              </div>
+                              <div className="mt-3 divide-y divide-gray-200 border-t border-gray-200 pt-2">
+                                {usersWithoutPick.sort().map(name => (
+                                  <div key={name} className="py-2 text-sm font-bold text-gray-500 flex items-center gap-2">
+                                     <UserX size={14} className="text-gray-400"/> {name}
+                                  </div>
+                                ))}
+                              </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === 'admin' && (
