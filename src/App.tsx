@@ -266,7 +266,7 @@ export default function App() {
   const [conferenceRaceId, setConferenceRaceId] = useState(1);
   const [showChampionModal, setShowChampionModal] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const [config, setConfig] = useState({ drivers: INITIAL_DRIVERS, races: INITIAL_RACES, officialChampion: null, financial: { entryFee: 300, mainPrizeDeduction: 240, perUserPoints: 10 } });
+  const [config, setConfig] = useState({ drivers: INITIAL_DRIVERS, races: INITIAL_RACES, officialChampion: null, financial: { entryFee: 300, mainPrizeDeduction: 240, perUserPoints: 10 }, registrationOpen: true });
   const [adminResult, setAdminResult] = useState({ top10: Array(10).fill(""), driverOfDay: "" });
   const [newDriverName, setNewDriverName] = useState("");
   const [editingRace, setEditingRace] = useState(null);
@@ -323,7 +323,7 @@ export default function App() {
       const unsubResults = onSnapshot(collection(db, 'results'), (snap) => { const r = {}; snap.docs.forEach(d => r[d.id] = d.data()); setResults(r); }, errorHandler);
       const unsubConfig = onSnapshot(doc(db, 'config', 'main'), (snap) => {
         if (snap.exists()) setConfig(snap.data());
-        else setDoc(doc(db, 'config', 'main'), { ...config, races: INITIAL_RACES }).catch(e => console.log("Init config error"));
+        else setDoc(doc(db, 'config', 'main'), { ...config, races: INITIAL_RACES, registrationOpen: true }).catch(e => console.log("Init config error"));
       }, errorHandler);
       return () => { unsubUsers(); unsubBets(); unsubResults(); unsubConfig(); };
     } catch (e) { console.error("Erro dados:", e); }
@@ -552,6 +552,10 @@ export default function App() {
   const logout = () => { localStorage.removeItem('bolao_f1_user_id'); setCurrentUser(null); setActiveTab('login'); };
 
   const register = async (data) => {
+    if (config.registrationOpen === false) {
+      return alert("As inscrições para a temporada 2026 já estão encerradas.");
+    }
+
     const id = data.email.replace(/\./g, '_');
     const userDocRef = doc(db, 'users', id);
     const userDocSnap = await getDoc(userDocRef);
@@ -690,7 +694,14 @@ export default function App() {
               {isLoading ? 'CARREGANDO SISTEMA...' : 'ENTRAR'}
           </button>
         </form>
-        <button onClick={() => setActiveTab('register')} className="mt-6 w-full text-center text-sm text-gray-400 hover:text-white underline transition">Criar Conta</button>
+        
+        {config.registrationOpen ? (
+          <button onClick={() => setActiveTab('register')} className="mt-6 w-full text-center text-sm text-gray-400 hover:text-white underline transition">Criar Conta</button>
+        ) : (
+          <div className="mt-6 text-center text-sm text-red-500 font-bold uppercase border-t border-gray-700 pt-4 flex items-center justify-center gap-2">
+            <Lock size={16} /> Inscrições Encerradas
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1052,6 +1063,30 @@ export default function App() {
             {/* MANTER SETTINGS E AUDIT COMO ESTAVAM */}
             {adminTab === 'settings' && (
                 <div className="space-y-6">
+                    
+                    {/* NOVO BLOCO: CONTROLE DE ACESSO */}
+                    <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-blue-500">
+                        <h2 className="text-lg font-black uppercase text-blue-800 mb-4 flex items-center gap-2"><Lock size={18}/> Controle de Acesso</h2>
+                        <div className="flex items-center justify-between bg-blue-50 p-4 rounded-lg border border-blue-100">
+                            <div>
+                                <p className="font-bold text-blue-900 uppercase">Inscrições na Temporada</p>
+                                <p className="text-xs text-blue-600">Liga/Desliga a opção de criar novas contas na tela inicial.</p>
+                            </div>
+                            <button 
+                                onClick={async () => {
+                                    const newState = !config.registrationOpen;
+                                    if(window.confirm(`Deseja ${newState ? 'ABRIR' : 'FECHAR'} as inscrições no Bolão?`)) {
+                                        await updateDoc(doc(db, 'config', 'main'), { registrationOpen: newState });
+                                        alert(`Inscrições ${newState ? 'abertas' : 'encerradas'} com sucesso!`);
+                                    }
+                                }}
+                                className={`px-6 py-3 rounded-xl font-black uppercase shadow-md transition-all ${config.registrationOpen ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-red-500 text-white hover:bg-red-600'}`}
+                            >
+                                {config.registrationOpen ? 'Abertas (ON)' : 'Encerradas (OFF)'}
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-red-500"><h2 className="text-lg font-black uppercase text-red-700 mb-4 flex items-center gap-2"><RefreshCw size={18}/> Reset de Emergência</h2><p className="text-xs text-gray-500 mb-4">Use APENAS para corrigir ordem das corridas.</p><button onClick={resetCalendar} className="bg-red-600 text-white px-4 py-3 rounded font-black uppercase hover:bg-red-700 shadow-md w-full">RESTAURAR CALENDÁRIO OFICIAL (2026)</button></div>
                     <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-yellow-500"><h2 className="text-lg font-black uppercase text-yellow-700 mb-4 flex items-center gap-2"><Trophy size={18}/> Finalizar Temporada</h2><div className="flex gap-2"><select className="flex-1 border p-2 rounded text-sm font-bold" value={config.officialChampion || ""} onChange={e => setConfig({...config, officialChampion: e.target.value})}><option value="">Selecione...</option>{config.drivers.map(d => <option key={d} value={d}>{d}</option>)}</select><button onClick={async () => { if(window.confirm("Confirmar?")) { await updateDoc(doc(db, 'config', 'main'), { officialChampion: config.officialChampion }); await processRecalculation(results); alert("Feito!"); } }} className="bg-yellow-500 text-white px-4 py-2 rounded font-black uppercase hover:bg-yellow-600 shadow-md">Confirmar</button></div></div>
                     {/* ... (Gerenciar Corridas e Pilotos mantidos igual) ... */}
