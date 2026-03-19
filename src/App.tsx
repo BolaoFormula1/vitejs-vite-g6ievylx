@@ -763,7 +763,12 @@ export default function App() {
                 <div className="bg-yellow-100 p-3 rounded-full"><Trophy className="text-yellow-600" size={24} /></div>
                 <div><h3 className="font-bold text-gray-800 uppercase italic text-sm">Palpite do Campeão</h3><p className="text-xs text-gray-500">{currentUser.championGuess ? <span className="font-black text-gray-900">{currentUser.championGuess}</span> : "Quem vence a temporada?"}</p></div>
               </div>
-              <button onClick={() => setShowChampionModal(true)} className="text-xs font-bold uppercase py-2 px-4 rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 shadow-lg">{currentUser.championGuess ? "Alterar" : "Definir"}</button>
+              
+              {/* Validação adicionada aqui para esconder o botão após o prazo */}
+              {new Date() < new Date("2026-03-04T23:59:59") && (
+                <button onClick={() => setShowChampionModal(true)} className="text-xs font-bold uppercase py-2 px-4 rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 shadow-lg">{currentUser.championGuess ? "Alterar" : "Definir"}</button>
+              )}
+              
             </div>
 
             <div className="bg-white p-6 rounded-xl shadow-md border-t-4 border-red-600">
