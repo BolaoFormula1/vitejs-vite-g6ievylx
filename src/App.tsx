@@ -831,9 +831,13 @@ export default function App() {
           <div className="max-w-4xl mx-auto space-y-6">
             <h2 className="text-2xl font-black text-gray-900 italic uppercase">Conferência</h2>
             
-            {/* Navegação da Conferência */}
+              {/* Navegação da Conferência */}
             <div className="flex gap-2 no-print">
               <button onClick={() => setConferenceTab('races')} className={`flex-1 py-3 rounded-xl font-bold uppercase text-xs transition ${conferenceTab === 'races' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'}`}>Resultados das Etapas</button>
+              
+              {/* NOVO BOTÃO ADICIONADO AQUI */}
+              <button onClick={() => setConferenceTab('detailed')} className={`flex-1 py-3 rounded-xl font-bold uppercase text-xs transition ${conferenceTab === 'detailed' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'}`}>Pontuação Detalhada</button>
+              
               <button onClick={() => setConferenceTab('champion')} className={`flex-1 py-3 rounded-xl font-bold uppercase text-xs transition ${conferenceTab === 'champion' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'}`}>Campeão 2026</button>
             </div>
 
@@ -853,7 +857,108 @@ export default function App() {
                 <div className="overflow-x-auto"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-100 border-b-2 border-gray-300"><th className="p-2 border">Partic.</th>{Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}<th className="p-2 border text-center bg-yellow-50">Piloto Dia</th></tr></thead><tbody>{users.filter(u => !u.isAdmin).sort((a,b) => a.name.localeCompare(b.name)).map(u => { const bet = bets[`${conferenceRaceId}_${u.id}`]; let displayBet = bet; if (!displayBet) { const race = config.races.find(r => r.id === conferenceRaceId); if (new Date() > new Date(race.deadline)) { const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date)); const currentIndex = sortedRaces.findIndex(r => r.id === conferenceRaceId); if (currentIndex > 0) { const prevRace = sortedRaces[currentIndex - 1]; displayBet = bets[`${prevRace.id}_${u.id}`]; } else if (race.startingGrid?.length > 0) { displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] }; } } } return (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-2 border font-bold truncate max-w-[100px]">{u.name}</td>{Array(10).fill(0).map((_, i) => (<td key={i} className="p-2 border text-center truncate max-w-[60px]">{displayBet?.top10[i] ? config.drivers.find(d => d === displayBet.top10[i])?.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td>))}<td className="p-2 border text-center bg-yellow-50 font-bold truncate max-w-[60px]">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</td></tr>) })}</tbody></table></div>
               </div>
             )}
+           {/* ABA: PONTUAÇÃO DETALHADA */}
+            {conferenceTab === 'detailed' && (
+              <div className="bg-white p-6 rounded-xl shadow-md printable-area">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print">
+                  <h2 className="text-xl font-black uppercase italic text-gray-800 flex items-center gap-2"><Calculator/> Pontuação Detalhada</h2>
+                  <div className="flex gap-2 items-center">
+                    <select className="p-2 border rounded font-bold text-xs bg-gray-50" value={conferenceRaceId} onChange={e => setConferenceRaceId(Number(e.target.value))}>
+                      {config.races.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                    <button onClick={handlePrintAudit} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-blue-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button>
+                  </div>
+                </div>
 
+                <div className="hidden print:block text-center mb-6">
+                  <h1 className="text-2xl font-black uppercase">F1 Bolão '26 - Pontuação Detalhada</h1>
+                  <p className="text-gray-600">{config.races.find(r => r.id === conferenceRaceId)?.name}</p>
+                </div>
+
+                {!results[conferenceRaceId] ? (
+                   <div className="text-center p-6 text-gray-500 font-bold uppercase border-2 border-dashed rounded-xl">O resultado oficial desta etapa ainda não foi lançado.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100 border-b-2 border-gray-300">
+                          <th className="p-2 border">Participante</th>
+                          {Array(10).fill(0).map((_, i) => <th key={i} className="p-2 border text-center">{i+1}º</th>)}
+                          <th className="p-2 border text-center bg-yellow-50">Piloto Dia</th>
+                          <th className="p-2 border text-center bg-green-50 text-green-800 font-black">TOTAL</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.filter(u => !u.isAdmin).map(u => {
+                          const race = config.races.find(r => r.id === conferenceRaceId);
+                          const officialResult = results[conferenceRaceId];
+                          const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
+                          const consolation = race.isBrazil ? 2 : 1;
+                          
+                          let displayBet = bets[`${conferenceRaceId}_${u.id}`];
+                          let isAuto = false;
+                          
+                          if (!displayBet) {
+                            const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
+                            const currentIndex = sortedRaces.findIndex(r => r.id === conferenceRaceId);
+                            if (currentIndex > 0) {
+                              const prevRace = sortedRaces[currentIndex - 1];
+                              displayBet = bets[`${prevRace.id}_${u.id}`];
+                              if(displayBet) isAuto = true;
+                            }
+                            if (!displayBet && race.startingGrid?.length > 0) {
+                              displayBet = { top10: race.startingGrid, driverOfDay: race.startingGrid[0] };
+                              isAuto = true;
+                            }
+                          }
+
+                          let totalPoints = 0;
+                          const driverPoints = Array(10).fill(0);
+                          let dodPoints = 0;
+
+                          if (displayBet && officialResult) {
+                            displayBet.top10.forEach((d, i) => {
+                              if (d) {
+                                const pos = officialResult.top10.indexOf(d);
+                                if (pos === i) {
+                                  driverPoints[i] = table[i];
+                                  totalPoints += table[i];
+                                } else if (pos !== -1) {
+                                  driverPoints[i] = consolation;
+                                  totalPoints += consolation;
+                                }
+                              }
+                            });
+                            if (displayBet.driverOfDay && displayBet.driverOfDay === officialResult.driverOfDay) {
+                              dodPoints = 5;
+                              totalPoints += 5;
+                            }
+                          }
+
+                          return { user: u, displayBet, driverPoints, dodPoints, totalPoints, isAuto };
+                        }).sort((a,b) => b.totalPoints - a.totalPoints || a.user.name.localeCompare(b.user.name))
+                        .map(({ user, displayBet, driverPoints, dodPoints, totalPoints, isAuto }) => (
+                          <tr key={user.id} className="border-b hover:bg-gray-50">
+                            <td className="p-2 border font-bold truncate max-w-[120px]">{user.name} {isAuto && <span className="text-[9px] text-yellow-600 font-normal ml-1">(Auto)</span>}</td>
+                            {Array(10).fill(0).map((_, i) => (
+                              <td key={i} className="p-2 border text-center truncate max-w-[60px]">
+                                <div className="text-[9px] text-gray-500 mb-1">{displayBet?.top10[i] ? displayBet.top10[i].split(' ').pop().substring(0,3).toUpperCase() : "-"}</div>
+                                <div className={`font-black rounded px-1 ${driverPoints[i] > (config.races.find(r => r.id === conferenceRaceId)?.isBrazil ? 2 : 1) ? 'bg-green-100 text-green-700' : driverPoints[i] > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-400'}`}>+{driverPoints[i]}</div>
+                              </td>
+                            ))}
+                            <td className="p-2 border text-center bg-yellow-50 truncate max-w-[60px]">
+                                <div className="text-[9px] text-gray-500 mb-1">{displayBet?.driverOfDay ? displayBet.driverOfDay.split(' ').pop().substring(0,3).toUpperCase() : "-"}</div>
+                                <div className={`font-black rounded px-1 ${dodPoints > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>+{dodPoints}</div>
+                            </td>
+                            <td className="p-2 border text-center bg-green-50 text-green-800 font-black text-sm">+{totalPoints}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
             {/* ABA: PALPITES DE CAMPEÃO */}
             {conferenceTab === 'champion' && (
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 printable-area">
