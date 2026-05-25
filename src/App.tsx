@@ -331,29 +331,43 @@ export default function App() {
 
   // SELEÇÃO AUTOMÁTICA DA PRÓXIMA CORRIDA (APENAS UMA VEZ)
   useEffect(() => {
-    if (hasAutoSelectedRace || config.races.length === 0) return;
+    if (isLoading || hasAutoSelectedRace || config.races.length === 0) return;
 
-    const sortedRaces = [...config.races].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sortedRaces = [...config.races].sort((a, b) => a.id - b.id);
     const now = new Date();
+    
+    // Define o limite de "validade" para uma corrida sem resultado (ex: 72 horas)
+    // Isso ignora etapas suspensas de meses atrás.
+    const seventyTwoHoursAgo = new Date(now.getTime() - (72 * 60 * 60 * 1000));
 
-    const nextRace = sortedRaces.find(r => {
-        const raceDate = new Date(r.date);
-        raceDate.setHours(23, 59, 59); // Considera até o final do dia da corrida
-        return raceDate >= now;
+    const activeRace = sortedRaces.find(r => {
+        const deadlineDate = new Date(r.deadline);
+        const hasOfficialResults = !!results[r.id];
+
+        // Condição 1: A corrida ainda está aberta para apostas (Futuro)
+        const isUpcoming = deadlineDate >= now;
+
+        // Condição 2: A corrida acabou recentemente (dentro de 72h) e ainda não tem resultados
+        // (Isso evita que o app abra em etapas suspensas antigas)
+        const isPendingResults = (deadlineDate < now && deadlineDate > seventyTwoHoursAgo && !hasOfficialResults);
+
+        return isUpcoming || isPendingResults;
     });
 
-    if (nextRace) {
-        setSelectedRaceId(nextRace.id);
-        setAdminRaceId(nextRace.id); // Sincroniza admin também
+    if (activeRace) {
+        setSelectedRaceId(activeRace.id);
+        setAdminRaceId(activeRace.id);
     } else {
+        // Se não encontrar nenhuma etapa "ativa" nos últimos 3 dias, 
+        // carrega a última corrida do ano para evitar erro.
         const lastRace = sortedRaces[sortedRaces.length - 1];
         if (lastRace) {
             setSelectedRaceId(lastRace.id);
             setAdminRaceId(lastRace.id);
         }
     }
-    setHasAutoSelectedRace(true); 
-  }, [config.races, hasAutoSelectedRace]);
+    setHasAutoSelectedRace(true);
+  }, [config.races, hasAutoSelectedRace, isLoading, results]);
 
 
   useEffect(() => {
