@@ -142,8 +142,22 @@ const getDriverColorClasses = (driverName) => {
 };
 
 // Componentes UI
-const PrintStyles = () => (
-  <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; color: black !important; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; background: white !important; } .no-print { display: none !important; } }`}</style>
+ const PrintStyles = () => (
+  <style>{`
+    @media print { 
+      /* Esconde o resto do site e mostra só a área de impressão */
+      body * { visibility: hidden; } 
+      .printable-area, .printable-area * { visibility: visible; } 
+      .printable-area { position: absolute; left: 0; top: 0; width: 100%; } 
+      .no-print { display: none !important; } 
+      
+      /* FORÇA O NAVEGADOR A IMPRIMIR AS CORES DE FUNDO (Verde, Amarelo, etc) */
+      * { 
+        -webkit-print-color-adjust: exact !important; 
+        print-color-adjust: exact !important; 
+      }
+    }
+  `}</style>
 );
 
 const ChampionModal = ({ drivers, onSubmit, onClose, currentGuess }) => {
