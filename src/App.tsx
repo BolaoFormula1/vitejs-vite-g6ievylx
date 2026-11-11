@@ -466,7 +466,7 @@ export default function App() {
                     if (pos === i) { points += table[i]; matches.push(i); } 
                     else if (pos !== -1) points += consolation;
                 });
-                if (effectiveBet.driverOfDay === currentResults.driverOfDay) points += 5;
+                if (effectiveBet.driverOfDay === currentResults.driverOfDay) points += (sortedRaces.find(r=>r.id===currentRaceId)?.isBrazil ? 10 : 5);
             }
             return { userId: u.id, name: u.name, points, matches, bet: effectiveBet };
         });
@@ -543,7 +543,7 @@ export default function App() {
             if (officialPos === idx) total += table[idx];
             else if (officialPos !== -1) total += consolation;
           });
-          if (bet.driverOfDay === result.driverOfDay) total += 5;
+          if (bet.driverOfDay === result.driverOfDay) total += (race.isBrazil ? 10 : 5);
         }
       });
 
@@ -766,7 +766,7 @@ export default function App() {
       const table = race.isBrazil ? POINTS_SYSTEM_BRAZIL : POINTS_SYSTEM;
       const consolation = race.isBrazil ? 2 : 1;
       currentBet.top10.forEach((d, i) => { if(d) { const pos = officialResult.top10.indexOf(d); if(pos === i) totalRacePoints += table[i]; else if(pos !== -1) totalRacePoints += consolation; } });
-      if(currentBet.driverOfDay && currentBet.driverOfDay === officialResult.driverOfDay) totalRacePoints += 5;
+      if(currentBet.driverOfDay && currentBet.driverOfDay === officialResult.driverOfDay) totalRacePoints += (race.isBrazil ? 10 : 5);
   }
   
   const isStageWinner = results[race.id]?.financialWinners?.includes(currentUser.id);
@@ -827,7 +827,8 @@ export default function App() {
                                 return (<div key={i} className="flex items-center gap-3"><span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white ${i < 3 ? 'bg-yellow-500' : 'bg-gray-400'}`}>{i+1}º</span><div className="flex-1 flex items-center gap-2"><div className={`flex-1 p-2 border rounded-lg text-sm font-medium ${driver ? 'bg-white' : 'bg-gray-50'}`}>{driver || "-"}</div><div className={`px-3 py-2 rounded-lg border text-xs min-w-[3rem] text-center ${style}`}>+{points}</div></div></div>);
                             })}
                         </div>
-                        <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><div className="flex items-center gap-2"><div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div><div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-400"}`}>+{currentBet.driverOfDay === results[race.id].driverOfDay ? 5 : 0}</div></div></div></div>
+                        <div className="space-y-6"><div className="bg-gray-50 p-5 rounded-xl border"><h3 className="text-xs font-black text-gray-400 uppercase mb-3">Piloto do Dia</h3><div className="flex items-center gap-2"><div className={`flex-1 p-3 border rounded-lg font-bold ${currentBet.driverOfDay ? 'bg-white' : 'bg-gray-50'}`}>{currentBet.driverOfDay || "-"}</div><div className={`px-3 py-3 rounded-lg border text-xs min-w-[3rem] text-center font-bold ${currentBet.driverOfDay && currentBet.driverOfDay === results[race.id].driverOfDay ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-400"}`}>+{currentBet.driverOfDay === results[race.id].driverOfDay ? (race.isBrazil ? 10 : 5) : 0}
+</div></div></div></div>
                       </div>
                   </div>
               ) : (
@@ -958,8 +959,8 @@ export default function App() {
                               }
                             });
                             if (displayBet.driverOfDay && displayBet.driverOfDay === officialResult.driverOfDay) {
-                              dodPoints = 5;
-                              totalPoints += 5;
+                              dodPoints = race.isBrazil ? 10 : 5;
+                              totalPoints += dodPoints;
                             }
                           }
 
